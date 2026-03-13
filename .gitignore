@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+*.FCStd
+*.FCBak
+*.step
+*.stl
+*.dxf
+*.svg
+*.pdf
+*.brep
+*.iges
+*.obj
