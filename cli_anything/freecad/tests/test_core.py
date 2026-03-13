@@ -2956,3 +2956,391 @@ class TestGDTCLI:
         assert len(data["gdt"]) == 1
         assert len(data["datums"]) == 1
         assert len(data["surface_finishes"]) == 1
+
+
+# ── Weld Symbol Tests ──────────────────────────────────────────────
+
+class TestWeldConstants:
+    """Test weld symbol constants completeness."""
+
+    def test_weld_types_complete(self):
+        from cli_anything.freecad.core.techdraw import WELD_TYPES
+        expected = {
+            "fillet", "v_groove", "square_groove", "bevel_groove",
+            "u_groove", "j_groove", "plug", "bead",
+            "spot", "seam", "edge", "flare_v", "flare_bevel",
+        }
+        assert set(WELD_TYPES.keys()) == expected
+
+    def test_weld_types_have_symbols(self):
+        from cli_anything.freecad.core.techdraw import WELD_TYPES
+        for name, info in WELD_TYPES.items():
+            assert "symbol" in info, f"{name} missing symbol"
+            assert "description" in info, f"{name} missing description"
+            assert "svg_file_arrow" in info, f"{name} missing svg_file_arrow"
+            assert "svg_file_other" in info, f"{name} missing svg_file_other"
+
+    def test_weld_contours(self):
+        from cli_anything.freecad.core.techdraw import WELD_CONTOURS
+        assert "flush" in WELD_CONTOURS
+        assert "convex" in WELD_CONTOURS
+        assert "concave" in WELD_CONTOURS
+
+    def test_weld_processes(self):
+        from cli_anything.freecad.core.techdraw import WELD_PROCESSES
+        assert "GMAW" in WELD_PROCESSES
+        assert "SMAW" in WELD_PROCESSES
+        assert "GTAW" in WELD_PROCESSES
+
+
+class TestWeldSymbol:
+    """Test add_weld_symbol core function."""
+
+    def _make_page(self):
+        from cli_anything.freecad.core.project import create_project
+        from cli_anything.freecad.core.techdraw import create_drawing, add_view
+        proj = create_project(name="WeldTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="Sheet1")
+        add_view(page, "Box", view_name="V1", direction="front")
+        proj["objects"].append(page)
+        return proj, page
+
+    def test_fillet_weld(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        weld = add_weld_symbol(page, "V1", weld_type="fillet", size="6")
+        assert weld["weld_type"] == "fillet"
+        assert weld["weld_symbol"] == "△"
+        assert weld["side"] == "arrow"
+        assert len(weld["tiles"]) == 1
+        assert weld["tiles"][0]["left_text"] == "6"
+
+    def test_v_groove_all_around(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        weld = add_weld_symbol(
+            page, "V1", weld_type="v_groove",
+            all_around=True, tail="GMAW",
+        )
+        assert weld["all_around"] is True
+        assert weld["tail"] == "GMAW"
+        assert weld["weld_type"] == "v_groove"
+
+    def test_bevel_field_weld_flush(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        weld = add_weld_symbol(
+            page, "V1", weld_type="bevel_groove",
+            field_weld=True, contour="flush", length="50",
+        )
+        assert weld["field_weld"] is True
+        assert weld["contour"] == "flush"
+        assert weld["contour_symbol"] == "—"
+        assert weld["tiles"][0]["right_text"] == "50"
+
+    def test_invalid_weld_type_raises(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        with pytest.raises(ValueError, match="Unknown weld type"):
+            add_weld_symbol(page, "V1", weld_type="nonexistent")
+
+    def test_invalid_side_raises(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        with pytest.raises(ValueError, match="Side must be"):
+            add_weld_symbol(page, "V1", weld_type="fillet", side="both")
+
+    def test_invalid_contour_raises(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        with pytest.raises(ValueError, match="Unknown contour"):
+            add_weld_symbol(page, "V1", weld_type="fillet", contour="wavy")
+
+    def test_other_side(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        weld = add_weld_symbol(page, "V1", weld_type="fillet", side="other", size="4")
+        assert weld["side"] == "other"
+        assert weld["tiles"][0]["side"] == "other"
+        assert weld["tiles"][0]["svg_file"] == "filletDown.svg"
+
+    def test_multiple_welds_on_page(self):
+        from cli_anything.freecad.core.techdraw import add_weld_symbol
+        _, page = self._make_page()
+        add_weld_symbol(page, "V1", weld_type="fillet", weld_name="W1")
+        add_weld_symbol(page, "V1", weld_type="v_groove", weld_name="W2")
+        assert len(page["params"]["welds"]) == 2
+
+
+class TestWeldTile:
+    """Test add_weld_tile for double-sided welds."""
+
+    def _make_page_with_weld(self):
+        from cli_anything.freecad.core.project import create_project
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_weld_symbol,
+        )
+        proj = create_project(name="WeldTileTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="Sheet1")
+        add_view(page, "Box", view_name="V1", direction="front")
+        proj["objects"].append(page)
+        add_weld_symbol(page, "V1", weld_type="fillet", side="arrow",
+                        size="6", weld_name="W1")
+        return proj, page
+
+    def test_add_other_side_tile(self):
+        from cli_anything.freecad.core.techdraw import add_weld_tile
+        _, page = self._make_page_with_weld()
+        tile = add_weld_tile(page, "W1", weld_type="fillet", side="other", size="4")
+        assert tile["side"] == "other"
+        assert tile["left_text"] == "4"
+        # Weld should now have 2 tiles
+        weld = page["params"]["welds"][0]
+        assert len(weld["tiles"]) == 2
+
+    def test_tile_different_type(self):
+        from cli_anything.freecad.core.techdraw import add_weld_tile
+        _, page = self._make_page_with_weld()
+        tile = add_weld_tile(page, "W1", weld_type="v_groove", side="other")
+        assert tile["weld_type"] == "v_groove"
+
+    def test_tile_nonexistent_weld_raises(self):
+        from cli_anything.freecad.core.techdraw import add_weld_tile
+        _, page = self._make_page_with_weld()
+        with pytest.raises(ValueError, match="Weld symbol not found"):
+            add_weld_tile(page, "NonExistent", weld_type="fillet")
+
+
+class TestWeldScriptGeneration:
+    """Test that _build_techdraw_script generates weld annotations."""
+
+    def _make_page_with_weld(self):
+        from cli_anything.freecad.core.project import create_project
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_weld_symbol,
+        )
+        proj = create_project(name="ScriptTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="Sheet1")
+        add_view(page, "Box", view_name="V1", direction="front")
+        proj["objects"].append(page)
+        return proj, page
+
+    def test_script_has_weld_annotation(self):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, _build_techdraw_script,
+        )
+        proj, page = self._make_page_with_weld()
+        add_weld_symbol(page, "V1", weld_type="fillet", size="6", weld_name="W1")
+        script = _build_techdraw_script(proj, "Sheet1")
+        assert "DrawViewAnnotation" in script
+        assert "'W1'" in script
+
+    def test_script_weld_with_tail(self):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, _build_techdraw_script,
+        )
+        proj, page = self._make_page_with_weld()
+        add_weld_symbol(page, "V1", weld_type="v_groove",
+                        tail="GMAW", weld_name="W2")
+        script = _build_techdraw_script(proj, "Sheet1")
+        assert "GMAW" in script
+
+    def test_script_weld_all_around(self):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, _build_techdraw_script,
+        )
+        proj, page = self._make_page_with_weld()
+        add_weld_symbol(page, "V1", weld_type="fillet",
+                        all_around=True, weld_name="W3")
+        script = _build_techdraw_script(proj, "Sheet1")
+        assert "○" in script
+
+
+class TestWeldSVGExport:
+    """Test SVG export includes weld symbols."""
+
+    def _make_page_with_weld(self, tmp_path):
+        from cli_anything.freecad.core.project import create_project
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_weld_symbol, export_drawing_svg,
+        )
+        proj = create_project(name="SVGTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="Sheet1")
+        add_view(page, "Box", view_name="V1", direction="front")
+        proj["objects"].append(page)
+        return proj, page
+
+    def test_svg_has_weld_reference_line(self, tmp_path):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, export_drawing_svg,
+        )
+        proj, page = self._make_page_with_weld(tmp_path)
+        add_weld_symbol(page, "V1", weld_type="fillet", size="6")
+        svg_path = str(tmp_path / "weld.svg")
+        result = export_drawing_svg(proj, "Sheet1", svg_path)
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        # Reference line + arrow line
+        assert "stroke-width=\"0.4\"" in content
+
+    def test_svg_has_weld_fillet_triangle(self, tmp_path):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, export_drawing_svg,
+        )
+        proj, page = self._make_page_with_weld(tmp_path)
+        add_weld_symbol(page, "V1", weld_type="fillet", size="6")
+        svg_path = str(tmp_path / "weld_fillet.svg")
+        result = export_drawing_svg(proj, "Sheet1", svg_path)
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        # Fillet weld renders as polygon (triangle)
+        assert "<polygon" in content
+        # Size text
+        assert ">6<" in content
+
+    def test_svg_has_all_around_circle(self, tmp_path):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, export_drawing_svg,
+        )
+        proj, page = self._make_page_with_weld(tmp_path)
+        add_weld_symbol(page, "V1", weld_type="fillet", all_around=True)
+        svg_path = str(tmp_path / "weld_allaround.svg")
+        result = export_drawing_svg(proj, "Sheet1", svg_path)
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        # All-around circle (r=2.5)
+        assert 'r="2.5"' in content
+
+    def test_svg_has_tail_text(self, tmp_path):
+        from cli_anything.freecad.core.techdraw import (
+            add_weld_symbol, export_drawing_svg,
+        )
+        proj, page = self._make_page_with_weld(tmp_path)
+        add_weld_symbol(page, "V1", weld_type="v_groove", tail="GTAW")
+        svg_path = str(tmp_path / "weld_tail.svg")
+        result = export_drawing_svg(proj, "Sheet1", svg_path)
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "GTAW" in content
+
+
+class TestWeldCLI:
+    """Test weld CLI commands via CliRunner."""
+
+    def test_weld_fillet_json(self, tmp_path):
+        from click.testing import CliRunner
+        from cli_anything.freecad.freecad_cli import cli
+        runner = CliRunner()
+        path = str(tmp_path / "weld_cli.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld", "P1", "View",
+            "-t", "fillet", "--size", "6", "--length", "50",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["weld_type"] == "fillet"
+        assert data["tiles"][0]["left_text"] == "6"
+        assert data["tiles"][0]["right_text"] == "50"
+
+    def test_weld_v_groove_all_around_json(self, tmp_path):
+        from click.testing import CliRunner
+        from cli_anything.freecad.freecad_cli import cli
+        runner = CliRunner()
+        path = str(tmp_path / "weld_cli2.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld", "P1", "View",
+            "-t", "v_groove", "--all-around", "--tail", "GMAW",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["all_around"] is True
+        assert data["tail"] == "GMAW"
+
+    def test_weld_tile_json(self, tmp_path):
+        from click.testing import CliRunner
+        from cli_anything.freecad.freecad_cli import cli
+        runner = CliRunner()
+        path = str(tmp_path / "weld_tile_cli.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
+        runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld", "P1", "View",
+            "-t", "fillet", "--size", "6", "-n", "W1",
+        ])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld-tile", "P1", "W1",
+            "-t", "fillet", "-s", "other", "--size", "4",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["side"] == "other"
+        assert data["left_text"] == "4"
+
+    def test_weld_with_contour_json(self, tmp_path):
+        from click.testing import CliRunner
+        from cli_anything.freecad.freecad_cli import cli
+        runner = CliRunner()
+        path = str(tmp_path / "weld_contour.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld", "P1", "View",
+            "-t", "bevel_groove", "--contour", "flush", "--field-weld",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["contour"] == "flush"
+        assert data["field_weld"] is True
+
+    def test_list_shows_welds(self, tmp_path):
+        from click.testing import CliRunner
+        from cli_anything.freecad.freecad_cli import cli
+        runner = CliRunner()
+        path = str(tmp_path / "weld_list.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
+        runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "weld", "P1", "View",
+            "-t", "fillet", "--size", "6",
+        ])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "list", "P1",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data["welds"]) == 1
+        assert data["welds"][0]["weld_type"] == "fillet"

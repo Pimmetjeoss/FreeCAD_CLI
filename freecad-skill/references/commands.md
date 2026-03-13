@@ -650,8 +650,63 @@ techdraw surface-finish Sheet1 FrontView --ra 1.6 -p removal_required
 techdraw surface-finish Sheet1 FrontView --ra 1.6 --rz 6.3 --lay "="
 ```
 
+### techdraw weld
+Add a weld symbol per AWS A2.4 / ISO 2553.
+
+```
+techdraw weld PAGE_NAME VIEW_NAME [OPTIONS]
+  PAGE_NAME              Target page name (required)
+  VIEW_NAME              Target view name (required)
+  -t, --type             Weld type: fillet, v_groove, square_groove, bevel_groove,
+                         u_groove, j_groove, plug, bead, spot, seam, edge,
+                         flare_v, flare_bevel [required]
+  -s, --side             Side: arrow or other [default: arrow]
+  --size TEXT             Weld size (e.g., "5" for 5mm)
+  --length TEXT           Weld length
+  --pitch TEXT            Weld pitch (spacing for intermittent welds)
+  --all-around           All-around symbol (circle at reference line junction)
+  --field-weld           Field weld flag (filled triangle at junction)
+  --tail TEXT            Tail text (welding process, e.g., "GMAW")
+  --contour              Contour: flush, convex, concave
+  -n, --name TEXT         Weld symbol name [auto-generated]
+  -x FLOAT               X position on page [default: 100]
+  -y FLOAT               Y position on page [default: 100]
+```
+
+Examples:
+```bash
+# Fillet weld, arrow side, 5mm size
+techdraw weld Sheet1 FrontView -t fillet -s arrow --size 5 --length 50
+
+# V-groove with all-around symbol
+techdraw weld Sheet1 FrontView -t v_groove --size 6 --all-around
+
+# Bevel groove with tail text, flush contour, field weld
+techdraw weld Sheet1 FrontView -t bevel_groove --size 8 --tail "GMAW" --contour flush --field-weld
+```
+
+### techdraw weld-tile
+Add an additional tile to an existing weld symbol (for double-sided welds).
+
+```
+techdraw weld-tile PAGE_NAME WELD_NAME [OPTIONS]
+  PAGE_NAME              Target page name (required)
+  WELD_NAME              Existing weld symbol name (required)
+  -t, --type             Weld type [required]
+  -s, --side             Side: arrow or other [default: other]
+  --size TEXT             Weld size
+  --length TEXT           Weld length
+  --pitch TEXT            Weld pitch
+```
+
+Example:
+```bash
+# Add other-side fillet to existing weld
+techdraw weld-tile Sheet1 Weld1 -t fillet -s other --size 3
+```
+
 ### techdraw list
-List all elements on a drawing page (views, dimensions, annotations, GD&T, datums, surface finishes).
+List all elements on a drawing page (views, dimensions, annotations, GD&T, datums, surface finishes, welds).
 
 ```
 techdraw list [OPTIONS]

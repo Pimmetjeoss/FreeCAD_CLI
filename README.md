@@ -6,7 +6,7 @@ A command-line interface for **FreeCAD** that lets you create, modify, and expor
 
 - **3D Modeling** — Primitives (box, cylinder, sphere, cone, torus), boolean operations, positioning
 - **2D Sketches** — Lines, circles, arcs, rectangles with constraints
-- **TechDraw Drawings** — Views, projection groups, cross-sections, detail views, dimensions, title block, centerlines, hatches, leader lines, balloons, bill of materials (BOM), **GD&T tolerances (ISO 1101 / ASME Y14.5), datum symbols, surface finish (ISO 1302)**
+- **TechDraw Drawings** — Views, projection groups, cross-sections, detail views, dimensions, title block, centerlines, hatches, leader lines, balloons, bill of materials (BOM), **GD&T tolerances (ISO 1101 / ASME Y14.5), datum symbols, surface finish (ISO 1302), weld symbols (AWS A2.4 / ISO 2553)**
 - **Export** — STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
 - **Interactive REPL** and one-shot commands
 - **JSON output** for AI agent integration
@@ -79,7 +79,7 @@ cli-anything-freecad --project cabinet.json export step cabinet.step --overwrite
 | `part` | `box`, `cylinder`, `sphere`, `cone`, `torus`, `fuse`, `cut`, `common`, `fillet`, `chamfer`, `move`, `list` |
 | `sketch` | `new`, `line`, `circle`, `arc`, `rect`, `constrain`, `close`, `list` |
 | `mesh` | `import`, `from-part` |
-| `techdraw` | `page`, `view`, `projection`, `section`, `detail`, `dimension`, `annotate`, `title-block`, `centerline`, `hatch`, `leader`, `balloon`, `bom`, **`gdt`**, **`datum`**, **`surface-finish`**, `list`, `export-dxf`, `export-svg`, `export-pdf` |
+| `techdraw` | `page`, `view`, `projection`, `section`, `detail`, `dimension`, `annotate`, `title-block`, `centerline`, `hatch`, `leader`, `balloon`, `bom`, **`gdt`**, **`datum`**, **`surface-finish`**, **`weld`**, **`weld-tile`**, `list`, `export-dxf`, `export-svg`, `export-pdf` |
 | `export` | `step`, `stl`, `obj`, `iges`, `brep`, `render`, `formats` |
 | `session` | `status`, `undo`, `redo`, `history` |
 
@@ -129,6 +129,24 @@ techdraw surface-finish Sheet1 FrontView --ra 1.6 -p removal_required
 
 14 GD&T characteristics supported (form, orientation, location, runout, profile). All render in SVG export as ISO-standard Feature Control Frames.
 
+### Weld Symbols (AWS A2.4 / ISO 2553)
+
+```bash
+# Fillet weld, arrow side
+techdraw weld Sheet1 FrontView -t fillet -s arrow --size 5 --length 50
+
+# V-groove with all-around symbol
+techdraw weld Sheet1 FrontView -t v_groove -s arrow --size 6 --all-around
+
+# Double-sided weld (add tile to other side)
+techdraw weld-tile Sheet1 Weld1 -t fillet -s other --size 3
+
+# Bevel groove with tail text, flush contour, field weld
+techdraw weld Sheet1 FrontView -t bevel_groove --size 8 --tail "GMAW" --contour flush --field-weld
+```
+
+13 weld types supported (fillet, v_groove, square_groove, bevel_groove, u_groove, j_groove, plug, bead, spot, seam, edge, flare_v, flare_bevel). All render in SVG export with proper reference lines, arrow lines, and type-specific symbols.
+
 ## JSON Mode
 
 All commands support `--json` output for AI agent integration:
@@ -152,7 +170,7 @@ cli_anything/freecad/
     freecad_backend.py    # freecadcmd subprocess wrapper
     repl_skin.py          # Interactive REPL styling
   tests/
-    test_core.py          # Unit + CLI tests (264 tests)
+    test_core.py          # Unit + CLI tests (291 tests)
     test_full_e2e.py      # End-to-end tests with FreeCAD backend
 ```
 

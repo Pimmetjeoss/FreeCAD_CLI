@@ -1,6 +1,6 @@
 ---
 name: freecad-cli-harness
-description: Comprehensive skill for driving the cli-anything FreeCAD CLI harness — parametric 3D modeling, 2D sketching, boolean operations, TechDraw fabrication drawings, GD&T geometric tolerancing (ISO 1101 / ASME Y14.5), datum symbols, surface finish annotations (ISO 1302), and multi-format export via the real FreeCAD/OCCT backend. This skill should be used when creating, modifying, or exporting 3D CAD models through the FreeCAD CLI, including building parts from primitives, generating technical drawings with dimensions, tolerances and annotations, and exporting to STEP/STL/DXF/PDF. Covers all 61+ commands across 8 command groups.
+description: Comprehensive skill for driving the cli-anything FreeCAD CLI harness — parametric 3D modeling, 2D sketching, boolean operations, TechDraw fabrication drawings, GD&T geometric tolerancing (ISO 1101 / ASME Y14.5), datum symbols, surface finish annotations (ISO 1302), weld symbols (AWS A2.4 / ISO 2553), and multi-format export via the real FreeCAD/OCCT backend. This skill should be used when creating, modifying, or exporting 3D CAD models through the FreeCAD CLI, including building parts from primitives, generating technical drawings with dimensions, tolerances, weld annotations, and exporting to STEP/STL/DXF/PDF. Covers all 63+ commands across 8 command groups.
 ---
 
 # FreeCAD CLI Harness
@@ -79,7 +79,7 @@ All commands support --json flag for machine-readable output. Refer to reference
 | sketch | new, line, circle, arc, rect, constrain, list | 2D parametric sketching |
 | mesh | import, from-part | Mesh import and conversion |
 | export | step, stl, obj, iges, brep, render, formats | Multi-format export pipeline |
-| techdraw | page, view, projection, section, detail, dimension, annotate, title-block, centerline, hatch, leader, balloon, bom, **gdt, datum, surface-finish**, list, export-dxf, export-svg, export-pdf | 2D fabrication drawings + GD&T |
+| techdraw | page, view, projection, section, detail, dimension, annotate, title-block, centerline, hatch, leader, balloon, bom, **gdt, datum, surface-finish, weld, weld-tile**, list, export-dxf, export-svg, export-pdf | 2D fabrication drawings + GD&T + welds |
 | session | status, undo, redo, history | Session state and undo/redo |
 | (root) | version, repl | Utilities |
 
@@ -127,10 +127,11 @@ The project JSON structure forms the core of all operations:
 | Extrusion | Part::Extrusion | base, dx, dy, dz |
 | Sketch | Sketcher::SketchObject | plane, geometry[], constraints[] |
 | Mesh Import | Mesh::Import | filepath |
-| Drawing Page | TechDraw::DrawPage | template, scale, views[], dimensions[], annotations[], title_block, centerlines[], hatches[], leaders[], balloons[], bom[], **gdt[], datums[], surface_finishes[]** |
+| Drawing Page | TechDraw::DrawPage | template, scale, views[], dimensions[], annotations[], title_block, centerlines[], hatches[], leaders[], balloons[], bom[], **gdt[], datums[], surface_finishes[], welds[]** |
 | GD&T Tolerance | TechDraw::GeometricTolerance | characteristic, symbol, tolerance, datum_refs[], material_condition, diameter_zone |
 | Datum Symbol | TechDraw::DatumSymbol | letter, view, x, y |
 | Surface Finish | TechDraw::SurfaceFinish | ra, rz, process, lay_direction |
+| Weld Symbol | TechDraw::WeldSymbol | weld_type, tiles[], all_around, field_weld, tail, contour |
 
 All primitives support placement via --px, --py, --pz flags for positioning in 3D space.
 
@@ -145,10 +146,11 @@ TechDraw is the most feature-rich command group. Refer to references/techdraw.md
 2. Add views        --> techdraw view / projection / section / detail
 3. Add dimensions   --> techdraw dimension (Distance, Radius, Diameter, Angle)
 4. Add GD&T         --> techdraw datum, techdraw gdt, techdraw surface-finish
-5. Add annotations  --> techdraw annotate, leader, balloon, bom
-6. Set title block  --> techdraw title-block
-7. Add details      --> techdraw centerline, hatch
-8. Export           --> techdraw export-pdf / export-svg / export-dxf
+5. Add welds        --> techdraw weld, techdraw weld-tile
+6. Add annotations  --> techdraw annotate, leader, balloon, bom
+7. Set title block  --> techdraw title-block
+8. Add details      --> techdraw centerline, hatch
+9. Export           --> techdraw export-pdf / export-svg / export-dxf
 ```
 
 ### Paper Sizes
@@ -303,6 +305,11 @@ techdraw datum Sheet1 Front B -x 130 -y 120
 techdraw gdt Sheet1 Front -c position -t 0.05 -d A -d B -m MMC --diameter-zone
 techdraw gdt Sheet1 Front -c flatness -t 0.01
 techdraw surface-finish Sheet1 Front --ra 1.6 -p removal_required
+
+# Weld symbols
+techdraw weld Sheet1 Front -t fillet -s arrow --size 5 --length 50
+techdraw weld Sheet1 Front -t v_groove --size 6 --all-around --tail "GMAW"
+techdraw weld-tile Sheet1 Weld1 -t fillet -s other --size 3
 
 techdraw title-block --title "Kast" --author "Ontwerper" --scale "1:10"
 techdraw bom --items "1,Corpus,Multiplex 18mm,1" "2,Plank,Multiplex 18mm,3"

@@ -357,13 +357,88 @@ Surface finish annotations specify manufacturing roughness requirements.
 ### Lay Direction
 Symbols: `=` (parallel), `⊥` (perpendicular), `X` (crossed), `M` (multi-directional), `C` (circular), `R` (radial)
 
+## Weld Symbols (AWS A2.4 / ISO 2553)
+
+### Weld JSON Structure
+```json
+{
+  "name": "Weld1",
+  "weld_type": "fillet",
+  "view": "FrontView",
+  "tiles": [
+    {
+      "weld_type": "fillet",
+      "side": "arrow",
+      "size": "5",
+      "length": "50",
+      "pitch": null
+    }
+  ],
+  "all_around": false,
+  "field_weld": false,
+  "tail": null,
+  "contour": null,
+  "x": 100,
+  "y": 80
+}
+```
+
+### Weld Types
+| Type | Symbol | Description |
+|------|--------|-------------|
+| fillet | △ | Fillet (corner) weld |
+| v_groove | V | V-groove butt weld |
+| square_groove | ‖ | Square groove butt weld |
+| bevel_groove | ⌐V | Single bevel groove |
+| u_groove | U | U-groove butt weld |
+| j_groove | J | J-groove weld |
+| plug | ○ | Plug or slot weld |
+| bead | ⌢ | Surfacing / bead weld |
+| spot | ● | Resistance spot weld |
+| seam | ═● | Seam weld |
+| edge | ╲ | Edge weld |
+| flare_v | )( | Flare-V groove |
+| flare_bevel | ) | Flare-bevel groove |
+
+### Contour Symbols
+| Contour | Symbol | Meaning |
+|---------|--------|---------|
+| flush | — | Flush (ground flat) |
+| convex | ⌢ | Convex finish |
+| concave | ⌣ | Concave finish |
+
+### Welding Processes (Tail Text)
+| Abbr | Process |
+|------|---------|
+| SMAW | Shielded Metal Arc Welding (stick) |
+| GMAW | Gas Metal Arc Welding (MIG) |
+| GTAW | Gas Tungsten Arc Welding (TIG) |
+| FCAW | Flux-Cored Arc Welding |
+| SAW | Submerged Arc Welding |
+| RSW | Resistance Spot Welding |
+| OFW | Oxy-Fuel Welding |
+| PAW | Plasma Arc Welding |
+| EBW | Electron Beam Welding |
+| LBW | Laser Beam Welding |
+
+### SVG Rendering
+Weld symbols are rendered as custom SVG with:
+- Reference line (horizontal, 40mm)
+- Arrow line (angled, with arrowhead marker)
+- Type-specific symbol geometry (polygon for fillet, polyline for V-groove, etc.)
+- All-around circle (r=2.5) at junction when enabled
+- Field weld flag (filled polygon) at junction when enabled
+- Dimension texts (size left, length right, pitch center)
+- Contour symbol above weld symbol
+- Tail text at end of reference line
+
 ## Export Functions
 
 ### DXF Export
 Exports via FreeCAD's Import.export() with the drawing page views.
 
 ### SVG Export
-Full SVG output including all views, dimensions, annotations, centerlines, hatches, balloons, BOM table, GD&T feature control frames, datum symbols, and surface finish symbols. Uses TechDraw's native SVG generation with custom SVG rendering for GD&T elements.
+Full SVG output including all views, dimensions, annotations, centerlines, hatches, balloons, BOM table, GD&T feature control frames, datum symbols, surface finish symbols, and weld symbols. Uses TechDraw's native SVG generation with custom SVG rendering for GD&T and weld elements.
 
 ### PDF Export
 Generates PDF via FreeCAD's TechDraw PDF export or SVG-to-PDF conversion.

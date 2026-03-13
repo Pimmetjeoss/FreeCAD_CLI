@@ -91,7 +91,9 @@ geometry kernel and provides a rich Python scripting API.
 - `techdraw gdt` — add a geometric tolerance frame (Feature Control Frame, ISO 1101 / ASME Y14.5)
 - `techdraw datum` — add a datum feature symbol (triangle + letter, ISO 5459)
 - `techdraw surface-finish` — add a surface finish symbol (Ra/Rz roughness, ISO 1302)
-- `techdraw list` — list all elements on a drawing page (including GD&T, datums, surface finishes)
+- `techdraw weld` — add a weld symbol (AWS A2.4 / ISO 2553) with type, side, size, length, pitch, contour
+- `techdraw weld-tile` — add additional tile to existing weld (double-sided welds)
+- `techdraw list` — list all elements on a drawing page (including GD&T, datums, surface finishes, welds)
 - `techdraw export-dxf` — export drawing to DXF
 - `techdraw export-svg` — export drawing to SVG (includes all annotations, centerlines, hatches, balloons, BOM, GD&T)
 - `techdraw export-pdf` — export drawing to PDF
@@ -106,6 +108,25 @@ geometry kernel and provides a rich Python scripting API.
 | Profile | profile_line ⌒, profile_surface ⌓ |
 
 Material conditions: MMC (Ⓜ), LMC (Ⓛ), RFS (default)
+
+#### Weld Types (AWS A2.4 / ISO 2553)
+| Type | Symbol |
+|------|--------|
+| fillet | △ |
+| v_groove | V |
+| square_groove | ‖ |
+| bevel_groove | ⌐V |
+| u_groove | U |
+| j_groove | J |
+| plug | ○ |
+| bead | ⌢ |
+| spot | ● |
+| seam | ═● |
+| edge | ╲ |
+| flare_v | )( |
+| flare_bevel | ) |
+
+Contour symbols: flush (—), convex (⌢), concave (⌣)
 
 ### 6. Export
 - `export step` — export to STEP format

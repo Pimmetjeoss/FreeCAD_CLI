@@ -149,6 +149,29 @@ Supported GD&T characteristics: `flatness`, `straightness`, `circularity`, `cyli
 
 Material conditions: `MMC` (Maximum Material Condition), `LMC` (Least Material Condition), `RFS` (Regardless of Feature Size).
 
+### Weld Symbols (AWS A2.4 / ISO 2553)
+```bash
+# Fillet weld, arrow side, 5mm size, 50mm length
+cli-anything-freecad --project part.json techdraw weld Sheet1 FrontView \
+  -t fillet -s arrow --size 5 --length 50
+
+# V-groove weld with all-around symbol
+cli-anything-freecad --project part.json techdraw weld Sheet1 FrontView \
+  -t v_groove -s arrow --size 6 --all-around
+
+# Bevel groove with tail text (welding process), flush contour, field weld
+cli-anything-freecad --project part.json techdraw weld Sheet1 FrontView \
+  -t bevel_groove -s arrow --size 8 --tail "GMAW" --contour flush --field-weld
+
+# Add other-side tile for double-sided weld
+cli-anything-freecad --project part.json techdraw weld-tile Sheet1 Weld1 \
+  -t fillet -s other --size 3
+```
+
+13 weld types: `fillet`, `v_groove`, `square_groove`, `bevel_groove`, `u_groove`, `j_groove`, `plug`, `bead`, `spot`, `seam`, `edge`, `flare_v`, `flare_bevel`.
+
+Contour symbols: `flush`, `convex`, `concave`.
+
 ### Placement (positioning objects in 3D)
 All primitives support `--px`, `--py`, `--pz` for 3D positioning:
 ```bash
@@ -171,7 +194,7 @@ cli-anything-freecad --project p.json techdraw view Sheet1 Box -d plan          
 - `part` — 3D solid modeling (box, cylinder, sphere, cone, torus, booleans, move)
 - `sketch` — 2D sketches (line, circle, arc, rect, constraints)
 - `mesh` — Mesh import/export
-- `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, **GD&T tolerances, datum symbols, surface finish**, DXF/SVG/PDF export)
+- `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, **GD&T tolerances, datum symbols, surface finish, weld symbols**, DXF/SVG/PDF export)
 - `export` — Export to STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
 - `session` — Undo/redo, history, status
 

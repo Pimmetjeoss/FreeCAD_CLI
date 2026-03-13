@@ -296,6 +296,47 @@ In SVG export, these are rendered as custom SVG elements:
 - **Datum**: Filled triangle (`<polygon>`) with letter in bordered box
 - **Surface finish**: Checkmark polyline with roughness values as text
 
+## Weld Symbol Script Generation
+
+Weld symbols are rendered as `TechDraw::DrawViewAnnotation` objects (same approach as GD&T):
+
+### Weld Annotation
+```python
+# Weld symbol (fillet, arrow side, 5mm, 50mm length)
+_weld = doc.addObject('TechDraw::DrawViewAnnotation', 'Weld1')
+_weld.Text = ['△ fillet | arrow | 5 × 50']
+_weld.X, _weld.Y = 100, 80
+page.addView(_weld)
+```
+
+### Native FreeCAD Weld Objects (alternative)
+```python
+# FreeCAD native weld symbol (DrawWeldSymbol + DrawTileWeld)
+_weld = doc.addObject('TechDraw::DrawWeldSymbol', 'Weld1')
+_weld.FieldWeld = True
+_weld.AllAround = False
+_weld.TailText = 'GMAW'
+page.addView(_weld)
+
+_tile = doc.addObject('TechDraw::DrawTileWeld', 'Tile1')
+_tile.TileParent = _weld
+_tile.LeftText = '5'        # Size
+_tile.RightText = '50'      # Length
+_tile.CenterText = ''       # Pitch
+_tile.TileColumn = 0        # 0=arrow side, 1=other side
+_tile.TileRow = 0           # 0=below ref line, 1=above
+```
+
+In SVG export, weld symbols are rendered as:
+- **Reference line**: Horizontal line (40mm)
+- **Arrow line**: Angled line with arrowhead marker
+- **Type symbol**: Polygon (fillet △), polyline (V-groove), circle (plug/spot), path (U/J-groove)
+- **All-around**: Circle at reference/arrow junction
+- **Field weld**: Filled triangle flag at junction
+- **Dimensions**: Size, length, pitch text labels
+- **Contour**: Symbol above weld (flush —, convex ⌢, concave ⌣)
+- **Tail**: Process text at end of reference line
+
 ## Backend Execution Wrapper
 
 The freecad_backend.run_script() function wraps all user scripts:

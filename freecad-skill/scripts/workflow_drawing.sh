@@ -44,6 +44,11 @@ $CLI techdraw gdt Page Front -c position -t 0.05 -d A -d B -m MMC --diameter-zon
 $CLI techdraw gdt Page Front -c flatness -t 0.01
 $CLI techdraw surface-finish Page Front --ra 1.6 -p removal_required
 
+echo "=== Adding weld symbols ==="
+$CLI techdraw weld Page Front -t fillet -s arrow --size 5 --length 50 -x 120 -y 90
+$CLI techdraw weld Page Front -t v_groove -s arrow --size 6 --all-around --tail "GMAW" -x 120 -y 60
+$CLI techdraw weld-tile Page Weld1 -t fillet -s other --size 3
+
 echo "=== Adding balloons ==="
 $CLI techdraw balloon --view Front --text "1" --origin-x 50 --origin-y 25
 

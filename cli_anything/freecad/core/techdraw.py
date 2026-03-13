@@ -950,6 +950,254 @@ def add_surface_finish(
     return sf
 
 
+# ── Weld Symbol Constants ────────────────────────────────────────────
+
+# AWS A2.4 / ISO 2553 weld symbol types
+WELD_TYPES = {
+    "fillet": {
+        "symbol": "△",
+        "description": "Fillet weld",
+        "svg_file_arrow": "filletUp.svg",
+        "svg_file_other": "filletDown.svg",
+    },
+    "v_groove": {
+        "symbol": "V",
+        "description": "V-groove weld",
+        "svg_file_arrow": "VUp.svg",
+        "svg_file_other": "VDown.svg",
+    },
+    "square_groove": {
+        "symbol": "||",
+        "description": "Square groove weld",
+        "svg_file_arrow": "SquareUp.svg",
+        "svg_file_other": "SquareDown.svg",
+    },
+    "bevel_groove": {
+        "symbol": "⌐V",
+        "description": "Bevel groove weld",
+        "svg_file_arrow": "bevelUp.svg",
+        "svg_file_other": "bevelDown.svg",
+    },
+    "u_groove": {
+        "symbol": "U",
+        "description": "U-groove weld",
+        "svg_file_arrow": "UUp.svg",
+        "svg_file_other": "UDown.svg",
+    },
+    "j_groove": {
+        "symbol": "J",
+        "description": "J-groove weld",
+        "svg_file_arrow": "JUp.svg",
+        "svg_file_other": "JDown.svg",
+    },
+    "plug": {
+        "symbol": "○",
+        "description": "Plug or slot weld",
+        "svg_file_arrow": "plug.svg",
+        "svg_file_other": "plug.svg",
+    },
+    "bead": {
+        "symbol": "⌓",
+        "description": "Surfacing / bead weld",
+        "svg_file_arrow": "beadUp.svg",
+        "svg_file_other": "beadDown.svg",
+    },
+    "spot": {
+        "symbol": "⊙",
+        "description": "Spot or projection weld",
+        "svg_file_arrow": "plug.svg",
+        "svg_file_other": "plug.svg",
+    },
+    "seam": {
+        "symbol": "⊜",
+        "description": "Seam weld",
+        "svg_file_arrow": "plug.svg",
+        "svg_file_other": "plug.svg",
+    },
+    "edge": {
+        "symbol": "⌐",
+        "description": "Edge weld",
+        "svg_file_arrow": "SquareUp.svg",
+        "svg_file_other": "SquareDown.svg",
+    },
+    "flare_v": {
+        "symbol": ")(V",
+        "description": "Flare-V-groove weld",
+        "svg_file_arrow": "VUp.svg",
+        "svg_file_other": "VDown.svg",
+    },
+    "flare_bevel": {
+        "symbol": ")(⌐",
+        "description": "Flare-bevel-groove weld",
+        "svg_file_arrow": "bevelUp.svg",
+        "svg_file_other": "bevelDown.svg",
+    },
+}
+
+# Welding process abbreviations (for tail text)
+WELD_PROCESSES = {
+    "SMAW": "Shielded Metal Arc Welding (stick)",
+    "GMAW": "Gas Metal Arc Welding (MIG)",
+    "GTAW": "Gas Tungsten Arc Welding (TIG)",
+    "FCAW": "Flux-Cored Arc Welding",
+    "SAW": "Submerged Arc Welding",
+    "RSW": "Resistance Spot Welding",
+    "OFW": "Oxy-Fuel Welding",
+    "EBW": "Electron Beam Welding",
+    "LBW": "Laser Beam Welding",
+    "SW": "Stud Welding",
+}
+
+# Contour/finish symbols
+WELD_CONTOURS = {
+    "flush": {"symbol": "—", "description": "Flush / flat finish"},
+    "convex": {"symbol": "⌒", "description": "Convex finish"},
+    "concave": {"symbol": "⌓", "description": "Concave finish"},
+}
+
+
+def add_weld_symbol(
+    page_obj: dict[str, Any],
+    view_name: str,
+    weld_type: str,
+    side: str = "arrow",
+    size: str = "",
+    length: str = "",
+    pitch: str = "",
+    all_around: bool = False,
+    field_weld: bool = False,
+    tail: str = "",
+    contour: str = "",
+    weld_name: str = "Weld",
+    x: float = 100,
+    y: float = 80,
+) -> dict[str, Any]:
+    """Add a welding symbol to a view on a TechDraw page.
+
+    Creates an AWS A2.4 / ISO 2553 compliant weld symbol with reference
+    line, arrow, basic weld symbol, dimensions, and supplementary indicators.
+
+    Args:
+        page_obj: Page object dict.
+        view_name: Name of the view to annotate.
+        weld_type: Weld type name (e.g. 'fillet', 'v_groove', 'bevel_groove').
+        side: 'arrow' (below line in AWS) or 'other' (above line in AWS).
+        size: Weld size/leg text (left of symbol), e.g. '6' for 6mm.
+        length: Weld length text (right of symbol), e.g. '50'.
+        pitch: Pitch/spacing text for intermittent welds, e.g. '100'.
+        all_around: If True, show all-around circle at arrow junction.
+        field_weld: If True, show field weld flag at arrow junction.
+        tail: Tail text (welding process, e.g. 'GMAW', or WPS reference).
+        contour: Contour finish: 'flush', 'convex', 'concave', or ''.
+        weld_name: Name for the weld symbol object.
+        x: X position on page (mm).
+        y: Y position on page (mm).
+
+    Returns:
+        Weld symbol dict.
+    """
+    if weld_type not in WELD_TYPES:
+        raise ValueError(
+            f"Unknown weld type: {weld_type!r}. "
+            f"Valid: {', '.join(WELD_TYPES.keys())}"
+        )
+    if side not in ("arrow", "other"):
+        raise ValueError(f"Side must be 'arrow' or 'other', got: {side!r}")
+    if contour and contour not in WELD_CONTOURS:
+        raise ValueError(
+            f"Unknown contour: {contour!r}. "
+            f"Valid: {', '.join(WELD_CONTOURS.keys())}"
+        )
+
+    wt_info = WELD_TYPES[weld_type]
+    contour_symbol = WELD_CONTOURS[contour]["symbol"] if contour else ""
+
+    weld: dict[str, Any] = {
+        "name": weld_name,
+        "type": "TechDraw::DrawWeldSymbol",
+        "view": view_name,
+        "weld_type": weld_type,
+        "weld_symbol": wt_info["symbol"],
+        "weld_description": wt_info["description"],
+        "side": side,
+        "size": size,
+        "length": length,
+        "pitch": pitch,
+        "all_around": all_around,
+        "field_weld": field_weld,
+        "tail": tail,
+        "contour": contour,
+        "contour_symbol": contour_symbol,
+        "tiles": [],
+        "x": x,
+        "y": y,
+    }
+
+    # Auto-create the first tile
+    tile: dict[str, Any] = {
+        "weld_type": weld_type,
+        "side": side,
+        "left_text": size,
+        "right_text": length,
+        "center_text": pitch,
+        "svg_file": wt_info["svg_file_arrow"] if side == "arrow" else wt_info["svg_file_other"],
+    }
+    weld["tiles"].append(tile)
+
+    page_obj["params"].setdefault("welds", []).append(weld)
+    return weld
+
+
+def add_weld_tile(
+    page_obj: dict[str, Any],
+    weld_name: str,
+    weld_type: str,
+    side: str = "other",
+    size: str = "",
+    length: str = "",
+    pitch: str = "",
+) -> dict[str, Any]:
+    """Add an additional tile to an existing weld symbol (for double-sided welds).
+
+    Args:
+        page_obj: Page object dict.
+        weld_name: Name of the existing weld symbol to add to.
+        weld_type: Weld type for this tile.
+        side: 'arrow' or 'other' (typically 'other' for second tile).
+        size: Weld size text (left of symbol).
+        length: Weld length text (right of symbol).
+        pitch: Pitch/spacing text.
+
+    Returns:
+        Tile dict.
+    """
+    if weld_type not in WELD_TYPES:
+        raise ValueError(
+            f"Unknown weld type: {weld_type!r}. "
+            f"Valid: {', '.join(WELD_TYPES.keys())}"
+        )
+    if side not in ("arrow", "other"):
+        raise ValueError(f"Side must be 'arrow' or 'other', got: {side!r}")
+
+    wt_info = WELD_TYPES[weld_type]
+    tile: dict[str, Any] = {
+        "weld_type": weld_type,
+        "side": side,
+        "left_text": size,
+        "right_text": length,
+        "center_text": pitch,
+        "svg_file": wt_info["svg_file_arrow"] if side == "arrow" else wt_info["svg_file_other"],
+    }
+
+    # Find the weld symbol and append tile
+    for w in page_obj["params"].get("welds", []):
+        if w.get("name") == weld_name:
+            w["tiles"].append(tile)
+            return tile
+
+    raise ValueError(f"Weld symbol not found: {weld_name!r}")
+
+
 def _build_techdraw_script(project: dict[str, Any], page_name: str) -> str:
     """Build FreeCAD Python script for TechDraw page creation.
 
@@ -1387,6 +1635,56 @@ def _build_techdraw_script(project: dict[str, Any], page_name: str) -> str:
             f"    _page.addView(_sf)\n"
             f"except Exception:\n"
             f"    pass  # Surface finish annotation may not render\n"
+        )
+
+    # Add weld symbols (using native DrawWeldSymbol when available,
+    # fallback to DrawViewAnnotation)
+    for weld in params.get("welds", []):
+        w_name = weld.get("name", "Weld")
+        w_view = weld.get("view", "View")
+        w_type = weld.get("weld_type", "fillet")
+        w_symbol = weld.get("weld_symbol", "△")
+        w_all_around = weld.get("all_around", False)
+        w_field_weld = weld.get("field_weld", False)
+        w_tail = weld.get("tail", "")
+        w_contour = weld.get("contour_symbol", "")
+        w_tiles = weld.get("tiles", [])
+        w_x = weld.get("x", 100)
+        w_y = weld.get("y", 80)
+
+        # Build annotation text representing the weld symbol
+        parts = []
+        for tile in w_tiles:
+            side = tile.get("side", "arrow")
+            left = tile.get("left_text", "")
+            right = tile.get("right_text", "")
+            center = tile.get("center_text", "")
+            side_label = "↓" if side == "arrow" else "↑"
+            tile_text = f"{side_label} {left} {w_symbol} {right}"
+            if center:
+                tile_text += f" ({center})"
+            parts.append(tile_text.strip())
+
+        text_lines = " | ".join(parts)
+        if w_all_around:
+            text_lines = "○ " + text_lines
+        if w_field_weld:
+            text_lines = "⚑ " + text_lines
+        if w_contour:
+            text_lines += f" {w_contour}"
+        if w_tail:
+            text_lines += f" [{w_tail}]"
+
+        script += (
+            f"\ntry:\n"
+            f"    _wld = doc.addObject('TechDraw::DrawViewAnnotation', {w_name!r})\n"
+            f"    _wld.Text = [{text_lines!r}]\n"
+            f"    _wld.TextSize = 3.5\n"
+            f"    _wld.X = {w_x}\n"
+            f"    _wld.Y = {w_y}\n"
+            f"    _page.addView(_wld)\n"
+            f"except Exception:\n"
+            f"    pass  # Weld symbol annotation\n"
         )
 
     # Add cosmetic edges and center marks
@@ -2152,6 +2450,176 @@ def export_drawing_svg(
             svg_elements.append(
                 f'  <text x="{sf_x + 5:.1f}" y="{sf_y - 8:.1f}" '
                 f'font-size="3" font-family="sans-serif" fill="black">{label}</text>'
+            )
+
+    # Add weld symbols (reference line + arrow + weld type symbol + dimensions)
+    for weld in page_params.get("welds", []):
+        wx = weld.get("x", 100)
+        wy = weld.get("y", 80)
+        w_symbol = weld.get("weld_symbol", "△")
+        w_all_around = weld.get("all_around", False)
+        w_field_weld = weld.get("field_weld", False)
+        w_tail = weld.get("tail", "")
+        w_contour_sym = weld.get("contour_symbol", "")
+        tiles = weld.get("tiles", [])
+
+        ref_len = 40  # Reference line length
+        arrow_len = 15  # Arrow leg length
+
+        # Reference line (horizontal)
+        svg_elements.append(
+            f'  <line x1="{wx:.1f}" y1="{wy:.1f}" '
+            f'x2="{wx + ref_len:.1f}" y2="{wy:.1f}" '
+            f'stroke="black" stroke-width="0.4"/>'
+        )
+
+        # Arrow line (angled down-left from start of reference line)
+        arrow_ex = wx - arrow_len * 0.7
+        arrow_ey = wy + arrow_len
+        svg_elements.append(
+            f'  <line x1="{wx:.1f}" y1="{wy:.1f}" '
+            f'x2="{arrow_ex:.1f}" y2="{arrow_ey:.1f}" '
+            f'stroke="black" stroke-width="0.4" marker-end="url(#arrow)"/>'
+        )
+
+        # All-around symbol (circle at junction)
+        if w_all_around:
+            svg_elements.append(
+                f'  <circle cx="{wx:.1f}" cy="{wy:.1f}" r="2.5" '
+                f'fill="none" stroke="black" stroke-width="0.3"/>'
+            )
+
+        # Field weld symbol (flag at junction)
+        if w_field_weld:
+            svg_elements.append(
+                f'  <polygon points="{wx:.1f},{wy:.1f} '
+                f'{wx:.1f},{wy - 5:.1f} '
+                f'{wx + 4:.1f},{wy - 3:.1f}" '
+                f'fill="black" stroke="black" stroke-width="0.2"/>'
+            )
+
+        # Draw tiles (weld type symbols + dimensions)
+        sym_size = 6
+        for tile in tiles:
+            side = tile.get("side", "arrow")
+            left_text = tile.get("left_text", "")
+            right_text = tile.get("right_text", "")
+            center_text = tile.get("center_text", "")
+
+            # Arrow side = below reference line, Other side = above
+            sym_cx = wx + ref_len / 2
+            if side == "arrow":
+                sym_cy = wy + sym_size / 2 + 0.5
+            else:
+                sym_cy = wy - sym_size / 2 - 0.5
+
+            # Weld type symbol (simplified geometric representation)
+            wt = tile.get("weld_type", "fillet")
+            if wt == "fillet":
+                # Right triangle
+                svg_elements.append(
+                    f'  <polygon points='
+                    f'"{sym_cx - sym_size / 2:.1f},{sym_cy + sym_size / 2:.1f} '
+                    f'{sym_cx - sym_size / 2:.1f},{sym_cy - sym_size / 2:.1f} '
+                    f'{sym_cx + sym_size / 2:.1f},{sym_cy + sym_size / 2:.1f}" '
+                    f'fill="none" stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt == "v_groove":
+                # V shape
+                svg_elements.append(
+                    f'  <polyline points='
+                    f'"{sym_cx - sym_size / 2:.1f},{sym_cy - sym_size / 2:.1f} '
+                    f'{sym_cx:.1f},{sym_cy + sym_size / 2:.1f} '
+                    f'{sym_cx + sym_size / 2:.1f},{sym_cy - sym_size / 2:.1f}" '
+                    f'fill="none" stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt == "square_groove":
+                # Two parallel vertical lines
+                svg_elements.append(
+                    f'  <line x1="{sym_cx - 1.5:.1f}" y1="{sym_cy - sym_size / 2:.1f}" '
+                    f'x2="{sym_cx - 1.5:.1f}" y2="{sym_cy + sym_size / 2:.1f}" '
+                    f'stroke="black" stroke-width="0.3"/>'
+                )
+                svg_elements.append(
+                    f'  <line x1="{sym_cx + 1.5:.1f}" y1="{sym_cy - sym_size / 2:.1f}" '
+                    f'x2="{sym_cx + 1.5:.1f}" y2="{sym_cy + sym_size / 2:.1f}" '
+                    f'stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt == "bevel_groove":
+                # Half-V (one vertical + one angled)
+                svg_elements.append(
+                    f'  <line x1="{sym_cx - sym_size / 2:.1f}" y1="{sym_cy - sym_size / 2:.1f}" '
+                    f'x2="{sym_cx - sym_size / 2:.1f}" y2="{sym_cy + sym_size / 2:.1f}" '
+                    f'stroke="black" stroke-width="0.3"/>'
+                )
+                svg_elements.append(
+                    f'  <line x1="{sym_cx - sym_size / 2:.1f}" y1="{sym_cy + sym_size / 2:.1f}" '
+                    f'x2="{sym_cx + sym_size / 2:.1f}" y2="{sym_cy - sym_size / 2:.1f}" '
+                    f'stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt in ("u_groove", "j_groove"):
+                # U/J shape (arc)
+                svg_elements.append(
+                    f'  <path d="M {sym_cx - sym_size / 2:.1f} {sym_cy - sym_size / 2:.1f} '
+                    f'Q {sym_cx:.1f} {sym_cy + sym_size / 2:.1f} '
+                    f'{sym_cx + sym_size / 2:.1f} {sym_cy - sym_size / 2:.1f}" '
+                    f'fill="none" stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt in ("plug", "spot"):
+                # Circle
+                svg_elements.append(
+                    f'  <circle cx="{sym_cx:.1f}" cy="{sym_cy:.1f}" r="{sym_size / 2:.1f}" '
+                    f'fill="none" stroke="black" stroke-width="0.3"/>'
+                )
+            elif wt == "bead":
+                # Semicircle
+                svg_elements.append(
+                    f'  <path d="M {sym_cx - sym_size / 2:.1f} {sym_cy:.1f} '
+                    f'A {sym_size / 2:.1f} {sym_size / 2:.1f} 0 0 1 '
+                    f'{sym_cx + sym_size / 2:.1f} {sym_cy:.1f}" '
+                    f'fill="none" stroke="black" stroke-width="0.3"/>'
+                )
+            else:
+                # Generic: text symbol
+                svg_elements.append(
+                    f'  <text x="{sym_cx:.1f}" y="{sym_cy + 1.5:.1f}" '
+                    f'font-size="5" font-family="sans-serif" fill="black" '
+                    f'text-anchor="middle">{w_symbol}</text>'
+                )
+
+            # Dimension texts
+            if left_text:
+                svg_elements.append(
+                    f'  <text x="{sym_cx - sym_size / 2 - 2:.1f}" y="{sym_cy + 1.5:.1f}" '
+                    f'font-size="3" font-family="sans-serif" fill="black" '
+                    f'text-anchor="end">{left_text}</text>'
+                )
+            if right_text:
+                svg_elements.append(
+                    f'  <text x="{sym_cx + sym_size / 2 + 2:.1f}" y="{sym_cy + 1.5:.1f}" '
+                    f'font-size="3" font-family="sans-serif" fill="black">{right_text}</text>'
+                )
+            if center_text:
+                offset_y = -sym_size / 2 - 2 if side == "arrow" else sym_size / 2 + 4
+                svg_elements.append(
+                    f'  <text x="{sym_cx:.1f}" y="{sym_cy + offset_y:.1f}" '
+                    f'font-size="2.5" font-family="sans-serif" fill="black" '
+                    f'text-anchor="middle">{center_text}</text>'
+                )
+
+        # Contour symbol (at end of reference line, above weld symbol)
+        if w_contour_sym:
+            svg_elements.append(
+                f'  <text x="{wx + ref_len / 2:.1f}" y="{wy - sym_size - 2:.1f}" '
+                f'font-size="4" font-family="sans-serif" fill="black" '
+                f'text-anchor="middle">{w_contour_sym}</text>'
+            )
+
+        # Tail text (at end of reference line)
+        if w_tail:
+            svg_elements.append(
+                f'  <text x="{wx + ref_len + 2:.1f}" y="{wy + 1.5:.1f}" '
+                f'font-size="3" font-family="sans-serif" fill="black">{w_tail}</text>'
             )
 
     # Add title block as SVG text in bottom-right

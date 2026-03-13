@@ -1464,6 +1464,114 @@ def techdraw_surface_finish(page_name: str, view_name: str,
     _output(sf, f"Added surface finish '{name}' ({', '.join(vals)}) to view '{view_name}'")
 
 
+@techdraw.command("weld")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-t", "--type", "weld_type", required=True,
+              type=click.Choice([
+                  "fillet", "v_groove", "square_groove", "bevel_groove",
+                  "u_groove", "j_groove", "plug", "bead",
+                  "spot", "seam", "edge", "flare_v", "flare_bevel",
+              ]),
+              help="Weld type (AWS A2.4 / ISO 2553)")
+@click.option("-s", "--side", default="arrow",
+              type=click.Choice(["arrow", "other"]),
+              help="Arrow side or other side of reference line")
+@click.option("--size", default="", help="Weld size/leg (left of symbol), e.g. '6'")
+@click.option("--length", default="", help="Weld length (right of symbol), e.g. '50'")
+@click.option("--pitch", default="", help="Pitch/spacing for intermittent welds")
+@click.option("--all-around", is_flag=True, help="All-around weld (circle at junction)")
+@click.option("--field-weld", is_flag=True, help="Field weld (flag at junction)")
+@click.option("--tail", default="", help="Tail text (process: GMAW, SMAW, etc.)")
+@click.option("--contour", default="",
+              type=click.Choice(["", "flush", "convex", "concave"]),
+              help="Contour/finish requirement")
+@click.option("-n", "--name", default=None, help="Weld symbol name")
+@click.option("-x", type=float, default=100, help="X position on page (mm)")
+@click.option("-y", type=float, default=80, help="Y position on page (mm)")
+def techdraw_weld(page_name: str, view_name: str, weld_type: str,
+                  side: str, size: str, length: str, pitch: str,
+                  all_around: bool, field_weld: bool, tail: str,
+                  contour: str, name: str | None, x: float, y: float) -> None:
+    """Add a welding symbol (AWS A2.4 / ISO 2553) to a view.
+
+    Creates a weld symbol with reference line, arrow, basic weld type,
+    dimensions, and supplementary indicators.
+
+    Examples:
+      # 6mm fillet weld, arrow side
+      techdraw weld Sheet1 V1 -t fillet --size 6
+
+      # V-groove, all-around, GMAW process
+      techdraw weld Sheet1 V1 -t v_groove --all-around --tail GMAW
+
+      # Bevel groove, 50mm length, field weld, flush finish
+      techdraw weld Sheet1 V1 -t bevel_groove --length 50 --field-weld --contour flush
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_weld_symbol
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Weld")
+    _session.checkpoint(f"add weld '{name}' to page '{page_name}'")
+    weld = add_weld_symbol(
+        page_obj, view_name, weld_type=weld_type, side=side,
+        size=size, length=length, pitch=pitch,
+        all_around=all_around, field_weld=field_weld,
+        tail=tail, contour=contour, weld_name=name, x=x, y=y,
+    )
+    _session.project["modified"] = True
+    _session._auto_save()
+    desc = weld.get("weld_description", weld_type)
+    extras = []
+    if all_around:
+        extras.append("all-around")
+    if field_weld:
+        extras.append("field")
+    extra_str = f" ({', '.join(extras)})" if extras else ""
+    _output(weld, f"Added weld '{name}' ({desc}){extra_str} to view '{view_name}'")
+
+
+@techdraw.command("weld-tile")
+@click.argument("page_name")
+@click.argument("weld_name")
+@click.option("-t", "--type", "weld_type", required=True,
+              type=click.Choice([
+                  "fillet", "v_groove", "square_groove", "bevel_groove",
+                  "u_groove", "j_groove", "plug", "bead",
+                  "spot", "seam", "edge", "flare_v", "flare_bevel",
+              ]),
+              help="Weld type for this tile")
+@click.option("-s", "--side", default="other",
+              type=click.Choice(["arrow", "other"]),
+              help="Arrow side or other side [default: other]")
+@click.option("--size", default="", help="Weld size (left of symbol)")
+@click.option("--length", default="", help="Weld length (right of symbol)")
+@click.option("--pitch", default="", help="Pitch/spacing")
+def techdraw_weld_tile(page_name: str, weld_name: str, weld_type: str,
+                       side: str, size: str, length: str, pitch: str) -> None:
+    """Add an additional weld tile to an existing weld symbol (double-sided welds).
+
+    Example:
+      # Add other-side fillet to existing weld
+      techdraw weld-tile Sheet1 Weld1 -t fillet -s other --size 4
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_weld_tile
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    _session.checkpoint(f"add weld tile to '{weld_name}' on page '{page_name}'")
+    tile = add_weld_tile(
+        page_obj, weld_name, weld_type=weld_type, side=side,
+        size=size, length=length, pitch=pitch,
+    )
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(tile, f"Added {side}-side {weld_type} tile to weld '{weld_name}'")
+
+
 @techdraw.command("list")
 @click.argument("page_name")
 def techdraw_list(page_name: str) -> None:
@@ -1491,6 +1599,7 @@ def techdraw_list(page_name: str) -> None:
         "gdt": params.get("gdt", []),
         "datums": params.get("datums", []),
         "surface_finishes": params.get("surface_finishes", []),
+        "welds": params.get("welds", []),
     }
     _output(data)
     if not _json_mode:
@@ -1557,6 +1666,22 @@ def techdraw_list(page_name: str) -> None:
                     vals.append(f"Rz={sf['rz']}")
                 click.echo(f"  - {sf.get('name', '?')} [{sf.get('process', '?')}] "
                            f"{', '.join(vals)} on {sf.get('view', '?')}")
+        if data["welds"]:
+            click.echo(f"Weld symbols ({len(data['welds'])}):")
+            for w in data["welds"]:
+                extras = []
+                if w.get("all_around"):
+                    extras.append("all-around")
+                if w.get("field_weld"):
+                    extras.append("field")
+                if w.get("tail"):
+                    extras.append(w["tail"])
+                extra_str = f" ({', '.join(extras)})" if extras else ""
+                tiles_count = len(w.get("tiles", []))
+                click.echo(f"  - {w.get('name', '?')} [{w.get('weld_type', '?')}] "
+                           f"{w.get('weld_symbol', '')}{extra_str} "
+                           f"({tiles_count} tile{'s' if tiles_count != 1 else ''}) "
+                           f"on {w.get('view', '?')}")
 
 
 @techdraw.command("export-dxf")
@@ -1761,6 +1886,8 @@ def repl(ctx: click.Context, project_path: str | None) -> None:
         "techdraw gdt <page> <view> -c TYPE -t TOL": "Add GD&T frame",
         "techdraw datum <page> <view> <letter>": "Add datum symbol",
         "techdraw surface-finish <page> <view> --ra/--rz": "Surface finish",
+        "techdraw weld <page> <view> -t TYPE": "Add weld symbol (AWS/ISO)",
+        "techdraw weld-tile <page> <weld> -t TYPE": "Add tile to weld",
         "export render <path> [-p FORMAT]": "Export to format",
         "export formats": "List formats",
         "session status": "Session status",
