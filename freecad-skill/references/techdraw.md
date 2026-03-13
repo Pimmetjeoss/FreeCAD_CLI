@@ -97,6 +97,44 @@ from 3D models with views, dimensions, annotations, BOM tables, and exports to D
         "material": "Multiplex 18mm",
         "quantity": "1"
       }
+    ],
+    "gdt": [
+      {
+        "name": "GDT1",
+        "type": "TechDraw::GeometricTolerance",
+        "view": "FrontView",
+        "characteristic": "position",
+        "symbol": "⌖",
+        "category": "location",
+        "tolerance": 0.05,
+        "diameter_zone": true,
+        "material_condition": "MMC",
+        "material_condition_symbol": "Ⓜ",
+        "datum_refs": ["A", "B"],
+        "x": 100, "y": 80
+      }
+    ],
+    "datums": [
+      {
+        "name": "DatumA",
+        "type": "TechDraw::DatumSymbol",
+        "view": "FrontView",
+        "letter": "A",
+        "x": 50, "y": 120
+      }
+    ],
+    "surface_finishes": [
+      {
+        "name": "SF1",
+        "type": "TechDraw::SurfaceFinish",
+        "view": "FrontView",
+        "ra": 1.6,
+        "rz": null,
+        "process": "removal_required",
+        "process_symbol": "▽",
+        "lay_direction": "=",
+        "x": 80, "y": 60
+      }
     ]
   }
 }
@@ -255,13 +293,77 @@ Parameters:
 | checked_by | QA reviewer |
 | approved_by | Approval authority |
 
+## GD&T — Geometric Dimensioning & Tolerancing (ISO 1101 / ASME Y14.5)
+
+### Feature Control Frame (FCF)
+A bordered row of cells containing: characteristic symbol | tolerance value | datum references.
+Rendered as `TechDraw::DrawViewAnnotation` in FreeCAD scripts and as SVG `<rect>` + `<text>` groups in SVG export.
+
+### GD&T Characteristics
+
+| Category | Characteristic | Symbol | Description |
+|----------|---------------|--------|-------------|
+| Form | flatness | ⏥ | Surface flatness |
+| Form | straightness | ⏤ | Line straightness |
+| Form | circularity | ○ | Roundness of cross-section |
+| Form | cylindricity | ⌭ | Combined roundness + straightness |
+| Orientation | perpendicularity | ⊥ | 90° to datum |
+| Orientation | parallelism | ∥ | Parallel to datum |
+| Orientation | angularity | ∠ | Angle to datum |
+| Location | position | ⌖ | True position (most common) |
+| Location | concentricity | ◎ | Coaxiality |
+| Location | symmetry | ⌯ | Symmetrical about datum |
+| Runout | circular_runout | ↗ | Single rotation runout |
+| Runout | total_runout | ⇗ | Full-length rotation runout |
+| Profile | profile_line | ⌒ | Line profile tolerance |
+| Profile | profile_surface | ⌓ | Surface profile tolerance |
+
+### Material Condition Modifiers
+
+| Modifier | Symbol | Meaning |
+|----------|--------|---------|
+| MMC | Ⓜ | Maximum Material Condition — tolerance applies at largest size |
+| LMC | Ⓛ | Least Material Condition — tolerance applies at smallest size |
+| RFS | (none) | Regardless of Feature Size (default) |
+
+### Diameter Zone
+When `diameter_zone=True`, the tolerance value is prefixed with ∅, indicating a cylindrical tolerance zone instead of two parallel planes.
+
+## Datum Feature Symbols (ISO 5459)
+
+Datum symbols mark reference surfaces/features for geometric tolerances.
+Rendered as a filled triangle (▼) with the datum letter in a bordered box.
+
+- Letters: A through Z (single uppercase letter, auto-uppercased)
+- Maximum 3 datum references per GD&T tolerance frame
+
+## Surface Finish Symbols (ISO 1302)
+
+Surface finish annotations specify manufacturing roughness requirements.
+
+### Roughness Parameters
+| Parameter | Description |
+|-----------|-------------|
+| Ra | Arithmetic mean roughness (µm) |
+| Rz | Mean peak-to-valley roughness (µm) |
+
+### Process Types
+| Process | Symbol | Meaning |
+|---------|--------|---------|
+| any | √ | Any manufacturing process allowed |
+| removal_required | ▽ | Material removal (machining) required |
+| removal_prohibited | ▽̶ | No material removal allowed (cast/forged as-is) |
+
+### Lay Direction
+Symbols: `=` (parallel), `⊥` (perpendicular), `X` (crossed), `M` (multi-directional), `C` (circular), `R` (radial)
+
 ## Export Functions
 
 ### DXF Export
 Exports via FreeCAD's Import.export() with the drawing page views.
 
 ### SVG Export
-Full SVG output including all views, dimensions, annotations, centerlines, hatches, balloons, and BOM table. Uses TechDraw's native SVG generation.
+Full SVG output including all views, dimensions, annotations, centerlines, hatches, balloons, BOM table, GD&T feature control frames, datum symbols, and surface finish symbols. Uses TechDraw's native SVG generation with custom SVG rendering for GD&T elements.
 
 ### PDF Export
 Generates PDF via FreeCAD's TechDraw PDF export or SVG-to-PDF conversion.
@@ -308,6 +410,13 @@ cli-anything-freecad techdraw hatch --view SectionA --face Face1 --pattern ansi3
 cli-anything-freecad techdraw annotate --text "GENERAL TOLERANCE: 0.5mm" -x 20 -y 190
 cli-anything-freecad techdraw leader --view Front --text "Surface Ra 1.6" \
     --start-x 50 --start-y 25 --end-x 80 --end-y 40
+
+# Add GD&T annotations
+cli-anything-freecad techdraw datum Page Front A -x 50 -y 120
+cli-anything-freecad techdraw datum Page Front B -x 150 -y 120
+cli-anything-freecad techdraw gdt Page Front -c position -t 0.05 -d A -d B -m MMC --diameter-zone
+cli-anything-freecad techdraw gdt Page Front -c flatness -t 0.01
+cli-anything-freecad techdraw surface-finish Page Front --ra 1.6 -p removal_required
 
 # Add balloons for BOM references
 cli-anything-freecad techdraw balloon --view Front --text "1" --origin-x 100 --origin-y 25

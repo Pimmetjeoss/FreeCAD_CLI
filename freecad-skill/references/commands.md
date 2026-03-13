@@ -572,8 +572,86 @@ techdraw bom [OPTIONS]
                           [default: "Pos,Naam,Materiaal,Aantal"]
 ```
 
+### techdraw gdt
+Add a geometric tolerance frame (Feature Control Frame) per ISO 1101 / ASME Y14.5.
+
+```
+techdraw gdt PAGE_NAME VIEW_NAME [OPTIONS]
+  PAGE_NAME              Target page name (required)
+  VIEW_NAME              Target view name (required)
+  -c, --characteristic   GD&T type: flatness, straightness, circularity, cylindricity,
+                          perpendicularity, parallelism, angularity, position,
+                          concentricity, symmetry, circular_runout, total_runout,
+                          profile_line, profile_surface (required)
+  -t, --tolerance FLOAT  Tolerance value in mm (required)
+  -d, --datum TEXT        Datum reference letter (repeat for multiple, max 3)
+  -m, --material-condition
+                          Material condition: MMC, LMC, RFS [default: RFS]
+  --diameter-zone        Use diameter (∅) tolerance zone
+  -n, --name TEXT         GD&T annotation name [auto-generated]
+  -x FLOAT               X position on page [default: 100]
+  -y FLOAT               Y position on page [default: 80]
+```
+
+Examples:
+```bash
+# Position tolerance 0.05mm relative to datums A and B, MMC
+techdraw gdt Sheet1 FrontView -c position -t 0.05 -d A -d B -m MMC --diameter-zone
+
+# Flatness 0.01mm (form tolerance, no datums needed)
+techdraw gdt Sheet1 FrontView -c flatness -t 0.01
+
+# Perpendicularity 0.1mm to datum A
+techdraw gdt Sheet1 FrontView -c perpendicularity -t 0.1 -d A
+```
+
+### techdraw datum
+Add a datum feature symbol (triangle + letter box) per ISO 5459 / ASME Y14.5.
+
+```
+techdraw datum PAGE_NAME VIEW_NAME LETTER [OPTIONS]
+  PAGE_NAME              Target page name (required)
+  VIEW_NAME              Target view name (required)
+  LETTER                 Datum letter: A, B, C, etc. (required)
+  -n, --name TEXT         Datum symbol name [auto-generated]
+  -x FLOAT               X position on page [default: 100]
+  -y FLOAT               Y position on page [default: 100]
+```
+
+Example:
+```bash
+techdraw datum Sheet1 FrontView A -x 50 -y 120
+```
+
+### techdraw surface-finish
+Add a surface finish (roughness) symbol per ISO 1302.
+
+```
+techdraw surface-finish PAGE_NAME VIEW_NAME [OPTIONS]
+  PAGE_NAME              Target page name (required)
+  VIEW_NAME              Target view name (required)
+  --ra FLOAT             Ra roughness value in µm (arithmetic mean)
+  --rz FLOAT             Rz roughness value in µm (mean peak-to-valley)
+  -p, --process          Process: any, removal_required, removal_prohibited [default: any]
+  --lay TEXT             Lay direction symbol (=, ⊥, X, M, C, R)
+  -n, --name TEXT         Surface finish name [auto-generated]
+  -x FLOAT               X position on page [default: 100]
+  -y FLOAT               Y position on page [default: 100]
+```
+
+Note: At least one of --ra or --rz must be specified.
+
+Examples:
+```bash
+# Ra 1.6 µm, machining required
+techdraw surface-finish Sheet1 FrontView --ra 1.6 -p removal_required
+
+# Ra and Rz with lay direction
+techdraw surface-finish Sheet1 FrontView --ra 1.6 --rz 6.3 --lay "="
+```
+
 ### techdraw list
-List all elements on a drawing page.
+List all elements on a drawing page (views, dimensions, annotations, GD&T, datums, surface finishes).
 
 ```
 techdraw list [OPTIONS]

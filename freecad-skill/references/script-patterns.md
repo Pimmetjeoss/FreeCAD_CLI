@@ -260,6 +260,42 @@ compound = Part.makeCompound([o.Shape for o in objects])
 compound.exportBrep("/path/to/output.brep")
 ```
 
+## GD&T Annotation Script Generation
+
+GD&T elements are rendered as `TechDraw::DrawViewAnnotation` objects since FreeCAD's TechDraw workbench does not have native GD&T frame objects.
+
+### Feature Control Frame
+```python
+# GD&T Feature Control Frame (position tolerance, MMC, datums A, B)
+_gdt = doc.addObject('TechDraw::DrawViewAnnotation', 'GDT1')
+_gdt.Text = ['⌖ | ∅ 0.05 Ⓜ | A | B']
+_gdt.X, _gdt.Y = 100, 80
+page.addView(_gdt)
+```
+
+### Datum Symbol
+```python
+# Datum feature symbol (triangle + letter)
+_datum = doc.addObject('TechDraw::DrawViewAnnotation', 'DatumA')
+_datum.Text = ['▼ [A]']
+_datum.X, _datum.Y = 50, 120
+page.addView(_datum)
+```
+
+### Surface Finish
+```python
+# Surface finish annotation (ISO 1302)
+_sf = doc.addObject('TechDraw::DrawViewAnnotation', 'SurfFinish1')
+_sf.Text = ['▽ Ra 1.6']
+_sf.X, _sf.Y = 80, 60
+page.addView(_sf)
+```
+
+In SVG export, these are rendered as custom SVG elements:
+- **FCF**: Row of bordered `<rect>` cells with `<text>` for symbol, tolerance, and datum refs
+- **Datum**: Filled triangle (`<polygon>`) with letter in bordered box
+- **Surface finish**: Checkmark polyline with roughness values as text
+
 ## Backend Execution Wrapper
 
 The freecad_backend.run_script() function wraps all user scripts:

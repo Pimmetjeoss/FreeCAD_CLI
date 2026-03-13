@@ -37,6 +37,13 @@ echo "=== Adding annotations ==="
 $CLI techdraw annotate --text "GENERAL TOLERANCE: +/- 0.5mm" -x 20 -y 190
 $CLI techdraw leader --view Front --text "Bore D30" --start-x 100 --start-y 50 --end-x 140 --end-y 70
 
+echo "=== Adding GD&T annotations ==="
+$CLI techdraw datum Page Front A -x 50 -y 120
+$CLI techdraw datum Page Front B -x 150 -y 120
+$CLI techdraw gdt Page Front -c position -t 0.05 -d A -d B -m MMC --diameter-zone
+$CLI techdraw gdt Page Front -c flatness -t 0.01
+$CLI techdraw surface-finish Page Front --ra 1.6 -p removal_required
+
 echo "=== Adding balloons ==="
 $CLI techdraw balloon --view Front --text "1" --origin-x 50 --origin-y 25
 
