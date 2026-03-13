@@ -1,0 +1,17 @@
+# Experiment outputs (regenerated each iteration)
+experiment.*
+_exp_geom.json
+
+# Logs
+run.log
+results.tsv
+
+# FreeCAD project files
+*.FCStd
+*.FCStd1
+*.FCBak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

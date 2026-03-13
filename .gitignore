@@ -7,6 +7,7 @@ build/
 *.FCStd
 *.FCBak
 *.step
+!autoresearch/reference.step
 *.stl
 *.dxf
 *.svg
