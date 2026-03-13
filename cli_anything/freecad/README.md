@@ -77,6 +77,51 @@ cli-anything-freecad --project part.json techdraw export-dxf Sheet1 drawing.dxf 
 cli-anything-freecad --project part.json techdraw export-svg Sheet1 drawing.svg --overwrite
 ```
 
+### Title block (titelblok)
+```bash
+cli-anything-freecad --project part.json techdraw title-block Sheet1 \
+  --title "Bouwtekening Dressoir" --author "Pim" \
+  --material "Eiken massief" --scale "1:10" --date "2026-03-13" \
+  --revision "A" --company "MijnBedrijf" --drawing-number "DWG-001"
+```
+
+### Detail view (uitvergroting)
+```bash
+cli-anything-freecad --project part.json techdraw detail Sheet1 Box FrontView \
+  --ax 10 --ay 5 -r 15 -s 3.0
+```
+
+### Centerline (hartlijn)
+```bash
+cli-anything-freecad --project part.json techdraw centerline Sheet1 FrontView \
+  -o vertical -p 50 --low -100 --high 100
+```
+
+### Hatch (arcering)
+```bash
+cli-anything-freecad --project part.json techdraw hatch Sheet1 SectionView \
+  -f Face0 -p ansi31 -s 1.5 -r 45
+```
+
+### Leader line (verwijslijn)
+```bash
+cli-anything-freecad --project part.json techdraw leader Sheet1 FrontView \
+  --sx 10 --sy 20 --ex 60 --ey 70 -t "Zie detail A"
+```
+
+### Balloon + BOM (stuklijst)
+```bash
+# Item-nummering met ballonnen
+cli-anything-freecad --project part.json techdraw balloon Sheet1 FrontView \
+  -t "1" -s circular -x 80 -y 30
+
+# Stuklijst (Bill of Materials)
+cli-anything-freecad --project part.json techdraw bom Sheet1 \
+  -i "item=1,name=Zijpaneel,material=Eiken,quantity=2" \
+  -i "item=2,name=Bovenpaneel,material=Eiken,quantity=1" \
+  -i "item=3,name=Achterwand,material=MDF,quantity=1"
+```
+
 ### Placement (positioning objects in 3D)
 All primitives support `--px`, `--py`, `--pz` for 3D positioning:
 ```bash
@@ -99,7 +144,7 @@ cli-anything-freecad --project p.json techdraw view Sheet1 Box -d plan          
 - `part` — 3D solid modeling (box, cylinder, sphere, cone, torus, booleans, move)
 - `sketch` — 2D sketches (line, circle, arc, rect, constraints)
 - `mesh` — Mesh import/export
-- `techdraw` — 2D fabrication drawings (pages, views, projections, dimensions, DXF/SVG/PDF export)
+- `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, DXF/SVG/PDF export)
 - `export` — Export to STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
 - `session` — Undo/redo, history, status
 

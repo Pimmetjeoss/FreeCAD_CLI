@@ -74,14 +74,33 @@ geometry kernel and provides a rich Python scripting API.
 - `mesh from-part` — convert Part shape to mesh
 - `mesh info` — show mesh statistics
 
-### 5. Export
+### 5. TechDraw (2D Fabrication Drawings)
+- `techdraw page` — create a drawing page (A0–A4, landscape/portrait)
+- `techdraw view` — add a 2D view of a 3D object
+- `techdraw projection` — add a multi-view projection group (Front, Top, Right, etc.)
+- `techdraw section` — add a cross-section view
+- `techdraw detail` — add a detail (magnified) view
+- `techdraw dimension` — add dimensions (Distance, DistanceX/Y, Radius, Diameter, Angle)
+- `techdraw annotate` — add text annotations
+- `techdraw title-block` — set title block fields (title, author, date, scale, material, revision, company, drawing number)
+- `techdraw centerline` — add centerlines (vertical/horizontal, dash-dot pattern)
+- `techdraw hatch` — add hatch patterns to faces (ansi31, etc.)
+- `techdraw leader` — add leader lines (reference lines with text and arrows)
+- `techdraw balloon` — add balloons (item number references, circular/rectangular/triangle/hexagon)
+- `techdraw bom` — add Bill of Materials table (stuklijst)
+- `techdraw list` — list all elements on a drawing page
+- `techdraw export-dxf` — export drawing to DXF
+- `techdraw export-svg` — export drawing to SVG (includes all annotations, centerlines, hatches, balloons, BOM)
+- `techdraw export-pdf` — export drawing to PDF
+
+### 6. Export
 - `export step` — export to STEP format
 - `export stl` — export to STL format
 - `export obj` — export to OBJ format
 - `export iges` — export to IGES format
 - `export render` — export via FreeCAD backend (any supported format)
 
-### 6. Session
+### 7. Session
 - `session status` — show session state
 - `session undo` — undo last operation
 - `session redo` — redo last undone operation
