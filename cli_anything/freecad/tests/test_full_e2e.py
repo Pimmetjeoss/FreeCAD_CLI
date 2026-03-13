@@ -304,7 +304,7 @@ class TestTechDrawSVG:
         assert r.get("file_size", 0) > 0
         assert os.path.exists(svg_path)
 
-        with open(svg_path) as f:
+        with open(svg_path, encoding="utf-8") as f:
             content = f.read(200)
         assert "svg" in content.lower()
         print(f"\n  SVG: {svg_path} ({r['file_size']:,} bytes)")
@@ -534,3 +534,371 @@ class TestCLISubprocess:
         names = [f["name"] for f in data["formats"]]
         assert "step" in names
         assert "stl" in names
+
+
+class TestRevolve:
+    """Part revolve tests — revolve a sketch profile around an axis."""
+
+    def test_revolve_sketch_to_step(self, tmp_dir):
+        """Create a sketch, revolve 360°, export to STEP."""
+        proj = create_project(name="RevolveTest")
+        # Create a rectangular profile on XZ plane (will revolve around Z axis)
+        proj["objects"].append({
+            "name": "Profile",
+            "type": "Sketcher::SketchObject",
+            "label": "Profile",
+            "params": {
+                "plane": "XZ",
+                "geometry": [
+                    {"type": "rect", "x": 5, "y": 0, "width": 5, "height": 10},
+                ],
+                "constraints": [],
+            },
+        })
+        # Revolve around Z axis (0,0,1) at origin — creates a hollow cylinder
+        proj["objects"].append({
+            "name": "Revolve",
+            "type": "Part::Revolution",
+            "label": "Revolve",
+            "params": {
+                "source": "Profile",
+                "angle": 360,
+                "axis_x": 0, "axis_y": 0, "axis_z": 1,
+                "base_x": 0, "base_y": 0, "base_z": 0,
+            },
+        })
+
+        step_path = os.path.join(tmp_dir, "revolve.step")
+        result = export(proj, step_path, preset="step", overwrite=True)
+
+        assert result["success"] is True, f"Export failed: {result}"
+        assert os.path.exists(result["output"])
+        assert result["file_size"] > 500
+        print(f"\n  STEP revolve: {result['output']} ({result['file_size']:,} bytes)")
+
+    def test_revolve_partial_angle(self, tmp_dir):
+        """Revolve a profile 180° — should produce a half-solid."""
+        proj = create_project(name="HalfRevolve")
+        proj["objects"].append({
+            "name": "Profile",
+            "type": "Sketcher::SketchObject",
+            "label": "Profile",
+            "params": {
+                "plane": "XZ",
+                "geometry": [
+                    {"type": "rect", "x": 5, "y": 0, "width": 5, "height": 10},
+                ],
+                "constraints": [],
+            },
+        })
+        proj["objects"].append({
+            "name": "HalfRev",
+            "type": "Part::Revolution",
+            "label": "HalfRev",
+            "params": {
+                "source": "Profile",
+                "angle": 180,
+                "axis_x": 0, "axis_y": 0, "axis_z": 1,
+                "base_x": 0, "base_y": 0, "base_z": 0,
+            },
+        })
+
+        step_path = os.path.join(tmp_dir, "half_revolve.step")
+        result = export(proj, step_path, preset="step", overwrite=True)
+
+        assert result["success"] is True, f"Export failed: {result}"
+        assert os.path.exists(result["output"])
+        print(f"\n  STEP half-revolve: {result['output']} ({result['file_size']:,} bytes)")
+
+
+# ── GD&T E2E Tests ─────────────────────────────────────────────────
+
+class TestGDTDrawingWorkflow:
+    """E2E tests for GD&T annotations on TechDraw pages."""
+
+    def test_gdt_position_on_drawing_svg(self, box_project, tmp_dir):
+        """Box + drawing page + position tolerance → export SVG with FCF."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_geometric_tolerance,
+            export_drawing_svg,
+        )
+        page = create_drawing(box_project, page_name="GDTSheet")
+        add_view(page, "Box", view_name="FrontView", direction="front")
+        add_geometric_tolerance(
+            page, "FrontView",
+            characteristic="position",
+            tolerance=0.05,
+            datum_refs=["A", "B"],
+            material_condition="MMC",
+            diameter_zone=True,
+            gdt_name="PosGDT1",
+            x=100, y=80,
+        )
+        box_project["objects"].append(page)
+
+        svg_path = os.path.join(tmp_dir, "gdt_position.svg")
+        result = export_drawing_svg(box_project, "GDTSheet", svg_path)
+
+        assert result["success"] is True
+        assert os.path.exists(svg_path)
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        # FCF should contain position symbol and datum refs
+        assert "⌖" in content, "Position symbol not found in SVG"
+        assert "0.05" in content, "Tolerance value not found in SVG"
+        assert ">A<" in content, "Datum A not found in SVG"
+        assert ">B<" in content, "Datum B not found in SVG"
+        print(f"\n  SVG GD&T position: {svg_path} ({result['result']['file_size']:,} bytes)")
+
+    def test_gdt_flatness_on_drawing_svg(self, box_project, tmp_dir):
+        """Flatness tolerance (form — no datums) → SVG."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_geometric_tolerance,
+            export_drawing_svg,
+        )
+        page = create_drawing(box_project, page_name="FlatSheet")
+        add_view(page, "Box", view_name="TopView", direction="top")
+        add_geometric_tolerance(
+            page, "TopView",
+            characteristic="flatness",
+            tolerance=0.02,
+            gdt_name="Flat1",
+        )
+        box_project["objects"].append(page)
+
+        svg_path = os.path.join(tmp_dir, "gdt_flatness.svg")
+        result = export_drawing_svg(box_project, "FlatSheet", svg_path)
+
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "⏥" in content, "Flatness symbol not found in SVG"
+        assert "0.02" in content
+        print(f"\n  SVG GD&T flatness: {svg_path}")
+
+    def test_gdt_perpendicularity_with_datum_svg(self, box_project, tmp_dir):
+        """Perpendicularity + datum symbol → SVG has both."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_geometric_tolerance,
+            add_datum_symbol, export_drawing_svg,
+        )
+        page = create_drawing(box_project, page_name="PerpSheet")
+        add_view(page, "Box", view_name="FrontView", direction="front")
+        add_datum_symbol(page, "FrontView", "A", datum_name="DatumA", x=50, y=120)
+        add_geometric_tolerance(
+            page, "FrontView",
+            characteristic="perpendicularity",
+            tolerance=0.1,
+            datum_refs=["A"],
+            gdt_name="Perp1",
+            x=100, y=80,
+        )
+        box_project["objects"].append(page)
+
+        svg_path = os.path.join(tmp_dir, "gdt_perp.svg")
+        result = export_drawing_svg(box_project, "PerpSheet", svg_path)
+
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "⊥" in content, "Perpendicularity symbol not found"
+        assert "0.1" in content
+        # Datum triangle + letter
+        assert ">A<" in content, "Datum A symbol not found"
+        print(f"\n  SVG GD&T perpendicularity + datum: {svg_path}")
+
+    def test_surface_finish_on_drawing_svg(self, box_project, tmp_dir):
+        """Surface finish annotation → SVG."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_surface_finish,
+            export_drawing_svg,
+        )
+        page = create_drawing(box_project, page_name="SFSheet")
+        add_view(page, "Box", view_name="FrontView", direction="front")
+        add_surface_finish(
+            page, "FrontView",
+            ra=1.6, rz=6.3,
+            process="removal_required",
+            lay_direction="=",
+            sf_name="SF1",
+            x=80, y=60,
+        )
+        box_project["objects"].append(page)
+
+        svg_path = os.path.join(tmp_dir, "surface_finish.svg")
+        result = export_drawing_svg(box_project, "SFSheet", svg_path)
+
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "Ra 1.6" in content, "Ra value not found in SVG"
+        assert "Rz 6.3" in content, "Rz value not found in SVG"
+        print(f"\n  SVG surface finish: {svg_path}")
+
+    def test_combined_gdt_workflow_svg(self, box_project, tmp_dir):
+        """Full GD&T workflow: datums + position + flatness + surface finish → SVG."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_geometric_tolerance,
+            add_datum_symbol, add_surface_finish, export_drawing_svg,
+        )
+        page = create_drawing(box_project, page_name="FullGDT")
+        add_view(page, "Box", view_name="FrontView", direction="front")
+
+        # Add datum references
+        add_datum_symbol(page, "FrontView", "A", datum_name="DatA", x=50, y=130)
+        add_datum_symbol(page, "FrontView", "B", datum_name="DatB", x=130, y=130)
+        add_datum_symbol(page, "FrontView", "C", datum_name="DatC", x=90, y=30)
+
+        # Position tolerance referencing all 3 datums
+        add_geometric_tolerance(
+            page, "FrontView",
+            characteristic="position",
+            tolerance=0.05,
+            datum_refs=["A", "B", "C"],
+            material_condition="MMC",
+            diameter_zone=True,
+            gdt_name="Pos1",
+            x=100, y=80,
+        )
+
+        # Flatness on top surface
+        add_geometric_tolerance(
+            page, "FrontView",
+            characteristic="flatness",
+            tolerance=0.01,
+            gdt_name="Flat1",
+            x=100, y=50,
+        )
+
+        # Surface finish
+        add_surface_finish(
+            page, "FrontView",
+            ra=0.8,
+            process="removal_required",
+            sf_name="SF1",
+            x=160, y=60,
+        )
+
+        box_project["objects"].append(page)
+
+        svg_path = os.path.join(tmp_dir, "full_gdt.svg")
+        result = export_drawing_svg(box_project, "FullGDT", svg_path)
+
+        assert result["success"] is True
+        with open(svg_path, encoding="utf-8") as f:
+            content = f.read()
+
+        # Verify all GD&T elements present
+        assert "⌖" in content, "Position symbol missing"
+        assert "⏥" in content, "Flatness symbol missing"
+        assert ">A<" in content, "Datum A missing"
+        assert ">B<" in content, "Datum B missing"
+        assert ">C<" in content, "Datum C missing"
+        assert "Ra 0.8" in content, "Surface finish missing"
+        assert "0.05" in content, "Position tolerance value missing"
+        assert "0.01" in content, "Flatness tolerance value missing"
+        print(f"\n  SVG full GD&T: {svg_path} ({result['result']['file_size']:,} bytes)")
+
+
+class TestGDTDrawingDXF:
+    """GD&T annotations exported to DXF."""
+
+    def test_gdt_to_dxf(self, box_project, tmp_dir):
+        """Box + GD&T annotations → DXF export succeeds."""
+        from cli_anything.freecad.core.techdraw import (
+            create_drawing, add_view, add_geometric_tolerance,
+            add_datum_symbol, export_drawing_dxf,
+        )
+        page = create_drawing(box_project, page_name="GDTDxf")
+        add_view(page, "Box", view_name="V1", direction="front")
+        add_datum_symbol(page, "V1", "A", datum_name="DatA", x=50, y=120)
+        add_geometric_tolerance(
+            page, "V1",
+            characteristic="position",
+            tolerance=0.1,
+            datum_refs=["A"],
+            gdt_name="PosGDT",
+            x=100, y=80,
+        )
+        box_project["objects"].append(page)
+
+        dxf_path = os.path.join(tmp_dir, "gdt.dxf")
+        result = export_drawing_dxf(box_project, "GDTDxf", dxf_path)
+
+        assert result["success"] is True
+        assert os.path.exists(dxf_path)
+        assert result["result"]["file_size"] > 0
+        print(f"\n  DXF GD&T: {dxf_path} ({result['result']['file_size']:,} bytes)")
+
+
+class TestGDTSubprocess:
+    """GD&T workflow via CLI subprocess."""
+    CLI_BASE = _resolve_cli("cli-anything-freecad")
+
+    def _run(self, args, check=True):
+        return subprocess.run(
+            self.CLI_BASE + args,
+            capture_output=True, text=True,
+            check=check,
+        )
+
+    def test_gdt_cli_workflow(self, tmp_dir):
+        """Full CLI workflow: project → box → page → view → GD&T → datum → list."""
+        proj_path = os.path.join(tmp_dir, "gdt_workflow.json")
+        svg_path = os.path.join(tmp_dir, "gdt_output.svg")
+
+        # Create project + box
+        self._run(["--json", "project", "new", "-n", "GDTWork", "-o", proj_path])
+        self._run(["--json", "--project", proj_path, "part", "box",
+                    "-l", "30", "-w", "20", "-H", "10"])
+
+        # Create drawing page + view
+        self._run(["--json", "--project", proj_path, "techdraw", "page",
+                    "-n", "S1", "-t", "A4_Landscape"])
+        self._run(["--json", "--project", proj_path, "techdraw", "view",
+                    "S1", "Box", "-d", "front", "-n", "V1"])
+
+        # Add datum
+        r = self._run(["--json", "--project", proj_path, "techdraw", "datum",
+                        "S1", "V1", "A", "-x", "50", "-y", "120"])
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        assert data["letter"] == "A"
+
+        # Add GD&T position tolerance
+        r = self._run(["--json", "--project", proj_path, "techdraw", "gdt",
+                        "S1", "V1", "-c", "position", "-t", "0.05",
+                        "-d", "A", "-m", "MMC", "--diameter-zone",
+                        "-x", "100", "-y", "80"])
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        assert data["characteristic"] == "position"
+        assert data["tolerance"] == 0.05
+        assert data["datum_refs"] == ["A"]
+        assert data["material_condition"] == "MMC"
+
+        # Add surface finish
+        r = self._run(["--json", "--project", proj_path, "techdraw", "surface-finish",
+                        "S1", "V1", "--ra", "1.6", "--rz", "6.3",
+                        "-p", "removal_required", "-x", "80", "-y", "60"])
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        assert data["ra"] == 1.6
+        assert data["rz"] == 6.3
+
+        # List should show GD&T items
+        r = self._run(["--json", "--project", proj_path, "techdraw", "list", "S1"])
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        assert len(data.get("gdt", [])) == 1
+        assert len(data.get("datums", [])) == 1
+        assert len(data.get("surface_finishes", [])) == 1
+
+        # Export SVG
+        r = self._run(["--json", "--project", proj_path, "techdraw", "export-svg",
+                        "S1", svg_path, "--overwrite"])
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        assert data["success"] is True
+        assert os.path.exists(svg_path)
+        print(f"\n  SVG GD&T workflow: {svg_path} ({data['file_size']:,} bytes)")

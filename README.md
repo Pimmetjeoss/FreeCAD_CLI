@@ -6,7 +6,7 @@ A command-line interface for **FreeCAD** that lets you create, modify, and expor
 
 - **3D Modeling** — Primitives (box, cylinder, sphere, cone, torus), boolean operations, positioning
 - **2D Sketches** — Lines, circles, arcs, rectangles with constraints
-- **TechDraw Drawings** — Views, projection groups, cross-sections, detail views, dimensions, title block, centerlines, hatches, leader lines, balloons, bill of materials (BOM)
+- **TechDraw Drawings** — Views, projection groups, cross-sections, detail views, dimensions, title block, centerlines, hatches, leader lines, balloons, bill of materials (BOM), **GD&T tolerances (ISO 1101 / ASME Y14.5), datum symbols, surface finish (ISO 1302)**
 - **Export** — STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
 - **Interactive REPL** and one-shot commands
 - **JSON output** for AI agent integration
@@ -79,7 +79,7 @@ cli-anything-freecad --project cabinet.json export step cabinet.step --overwrite
 | `part` | `box`, `cylinder`, `sphere`, `cone`, `torus`, `fuse`, `cut`, `common`, `fillet`, `chamfer`, `move`, `list` |
 | `sketch` | `new`, `line`, `circle`, `arc`, `rect`, `constrain`, `close`, `list` |
 | `mesh` | `import`, `from-part` |
-| `techdraw` | `page`, `view`, `projection`, `section`, `detail`, `dimension`, `annotate`, `title-block`, `centerline`, `hatch`, `leader`, `balloon`, `bom`, `list`, `export-dxf`, `export-svg`, `export-pdf` |
+| `techdraw` | `page`, `view`, `projection`, `section`, `detail`, `dimension`, `annotate`, `title-block`, `centerline`, `hatch`, `leader`, `balloon`, `bom`, **`gdt`**, **`datum`**, **`surface-finish`**, `list`, `export-dxf`, `export-svg`, `export-pdf` |
 | `export` | `step`, `stl`, `obj`, `iges`, `brep`, `render`, `formats` |
 | `session` | `status`, `undo`, `redo`, `history` |
 
@@ -110,6 +110,25 @@ techdraw balloon Sheet1 FrontView -t "1" -s circular -x 80 -y 30
 techdraw bom Sheet1 -i "item=1,name=Side Panel,material=Oak,quantity=2"
 ```
 
+### GD&T — Geometric Dimensioning & Tolerancing
+
+```bash
+# Datum feature symbols
+techdraw datum Sheet1 FrontView A
+techdraw datum Sheet1 FrontView B
+
+# Position tolerance with datums and MMC
+techdraw gdt Sheet1 FrontView -c position -t 0.05 -d A -d B -m MMC --diameter-zone
+
+# Flatness (form tolerance, no datums)
+techdraw gdt Sheet1 FrontView -c flatness -t 0.01
+
+# Surface finish (ISO 1302)
+techdraw surface-finish Sheet1 FrontView --ra 1.6 -p removal_required
+```
+
+14 GD&T characteristics supported (form, orientation, location, runout, profile). All render in SVG export as ISO-standard Feature Control Frames.
+
 ## JSON Mode
 
 All commands support `--json` output for AI agent integration:
@@ -133,7 +152,7 @@ cli_anything/freecad/
     freecad_backend.py    # freecadcmd subprocess wrapper
     repl_skin.py          # Interactive REPL styling
   tests/
-    test_core.py          # Unit + CLI tests (132 tests)
+    test_core.py          # Unit + CLI tests (264 tests)
     test_full_e2e.py      # End-to-end tests with FreeCAD backend
 ```
 

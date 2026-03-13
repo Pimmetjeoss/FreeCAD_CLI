@@ -321,6 +321,37 @@ def _object_to_script(obj: dict[str, Any]) -> str:
             f"_edges = [(i+1, {size}, {size}) for i in range(len(_base.Shape.Edges))]\n"
             f"_obj.Shape = _base.Shape.makeChamfer({size}, _base.Shape.Edges)\n"
         )
+    elif obj_type == "Part::Revolution":
+        source = params.get("source")
+        axis_x = params.get("axis_x", 0)
+        axis_y = params.get("axis_y", 0)
+        axis_z = params.get("axis_z", 1)
+        base_x = params.get("base_x", 0)
+        base_y = params.get("base_y", 0)
+        base_z = params.get("base_z", 0)
+        angle = params.get("angle", 360)
+        return (
+            f"_obj = doc.addObject('Part::Revolution', {name!r})\n"
+            f"_obj.Source = doc.getObject({source!r})\n"
+            f"_obj.Axis = FreeCAD.Vector({axis_x}, {axis_y}, {axis_z})\n"
+            f"_obj.Base = FreeCAD.Vector({base_x}, {base_y}, {base_z})\n"
+            f"_obj.Angle = {angle}\n"
+        )
+    elif obj_type == "Part::Sweep":
+        profile = params.get("profile")
+        path = params.get("path")
+        solid = params.get("solid", True)
+        frenet = params.get("frenet", True)
+        return (
+            f"doc.recompute()\n"
+            f"_profile = doc.getObject({profile!r})\n"
+            f"_path = doc.getObject({path!r})\n"
+            f"_sweep = doc.addObject('Part::Sweep', {name!r})\n"
+            f"_sweep.Sections = [_profile]\n"
+            f"_sweep.Spine = (_path, ['Edge1'])\n"
+            f"_sweep.Solid = {solid}\n"
+            f"_sweep.Frenet = {frenet}\n"
+        )
     elif obj_type == "Part::Extrusion":
         base = params.get("base")
         dx = params.get("dx", 0)

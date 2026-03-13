@@ -122,6 +122,33 @@ cli-anything-freecad --project part.json techdraw bom Sheet1 \
   -i "item=3,name=Achterwand,material=MDF,quantity=1"
 ```
 
+### GD&T — Geometric Dimensioning & Tolerancing (ISO 1101 / ASME Y14.5)
+```bash
+# Add datum feature symbol (triangle + letter)
+cli-anything-freecad --project part.json techdraw datum Sheet1 FrontView A -x 50 -y 120
+cli-anything-freecad --project part.json techdraw datum Sheet1 FrontView B -x 130 -y 120
+
+# Position tolerance ⌖ 0.05mm, datums A & B, MMC, diameter zone
+cli-anything-freecad --project part.json techdraw gdt Sheet1 FrontView \
+  -c position -t 0.05 -d A -d B -m MMC --diameter-zone
+
+# Flatness tolerance ⏥ 0.01mm (form — no datums)
+cli-anything-freecad --project part.json techdraw gdt Sheet1 FrontView \
+  -c flatness -t 0.01
+
+# Perpendicularity ⊥ 0.1mm to datum A
+cli-anything-freecad --project part.json techdraw gdt Sheet1 FrontView \
+  -c perpendicularity -t 0.1 -d A
+
+# Surface finish per ISO 1302
+cli-anything-freecad --project part.json techdraw surface-finish Sheet1 FrontView \
+  --ra 1.6 --rz 6.3 -p removal_required --lay "="
+```
+
+Supported GD&T characteristics: `flatness`, `straightness`, `circularity`, `cylindricity`, `perpendicularity`, `parallelism`, `angularity`, `position`, `concentricity`, `symmetry`, `circular_runout`, `total_runout`, `profile_line`, `profile_surface`.
+
+Material conditions: `MMC` (Maximum Material Condition), `LMC` (Least Material Condition), `RFS` (Regardless of Feature Size).
+
 ### Placement (positioning objects in 3D)
 All primitives support `--px`, `--py`, `--pz` for 3D positioning:
 ```bash
@@ -144,7 +171,7 @@ cli-anything-freecad --project p.json techdraw view Sheet1 Box -d plan          
 - `part` — 3D solid modeling (box, cylinder, sphere, cone, torus, booleans, move)
 - `sketch` — 2D sketches (line, circle, arc, rect, constraints)
 - `mesh` — Mesh import/export
-- `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, DXF/SVG/PDF export)
+- `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, **GD&T tolerances, datum symbols, surface finish**, DXF/SVG/PDF export)
 - `export` — Export to STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
 - `session` — Undo/redo, history, status
 

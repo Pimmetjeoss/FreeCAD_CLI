@@ -428,6 +428,71 @@ def part_chamfer(base: str, size: float, name: str | None) -> None:
     _output(obj, f"Created chamfer '{name}' on '{base}' (s={size})")
 
 
+@part.command("revolve")
+@click.argument("source")
+@click.option("-a", "--angle", type=float, default=360, help="Revolution angle in degrees")
+@click.option("--axis-x", type=float, default=0, help="Rotation axis X component")
+@click.option("--axis-y", type=float, default=0, help="Rotation axis Y component")
+@click.option("--axis-z", type=float, default=1, help="Rotation axis Z component")
+@click.option("--base-x", type=float, default=0, help="Base point X (point on axis)")
+@click.option("--base-y", type=float, default=0, help="Base point Y (point on axis)")
+@click.option("--base-z", type=float, default=0, help="Base point Z (point on axis)")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_revolve(source: str, angle: float, axis_x: float, axis_y: float, axis_z: float, base_x: float, base_y: float, base_z: float, name: str | None) -> None:
+    """Revolve a profile (sketch/shape) around an axis."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Revolve")
+    obj = {
+        "name": name,
+        "type": "Part::Revolution",
+        "label": name,
+        "params": {
+            "source": source,
+            "angle": angle,
+            "axis_x": axis_x,
+            "axis_y": axis_y,
+            "axis_z": axis_z,
+            "base_x": base_x,
+            "base_y": base_y,
+            "base_z": base_z,
+        },
+    }
+    axis_str = f"({axis_x}, {axis_y}, {axis_z})"
+    _session.add_object(obj, f"revolve '{source}' {angle}° around {axis_str}")
+    _output(obj, f"Created revolve '{name}' from '{source}' ({angle}° around {axis_str})")
+
+
+@part.command("sweep")
+@click.argument("profile")
+@click.argument("path")
+@click.option("--solid/--no-solid", default=True, help="Create solid (vs shell)")
+@click.option("--frenet/--no-frenet", default=True, help="Use Frenet frame")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_sweep(profile: str, path: str, solid: bool, frenet: bool, name: str | None) -> None:
+    """Sweep a profile along a path (spine)."""
+    _ensure_project()
+    if not _session.get_object(profile):
+        raise click.ClickException(f"Profile not found: {profile}")
+    if not _session.get_object(path):
+        raise click.ClickException(f"Path not found: {path}")
+    name = name or _next_name("Sweep")
+    obj = {
+        "name": name,
+        "type": "Part::Sweep",
+        "label": name,
+        "params": {
+            "profile": profile,
+            "path": path,
+            "solid": solid,
+            "frenet": frenet,
+        },
+    }
+    _session.add_object(obj, f"sweep '{profile}' along '{path}'")
+    _output(obj, f"Created sweep '{name}' (profile='{profile}', path='{path}')")
+
+
 @part.command("list")
 def part_list() -> None:
     """List all objects in the project."""
@@ -845,14 +910,28 @@ def techdraw_section(page_name: str, source_name: str, base_view_name: str,
               type=click.Choice(["Distance", "DistanceX", "DistanceY", "Radius", "Diameter", "Angle"]),
               help="Dimension type")
 @click.option("-e", "--edge", "edge_ref", default="Edge0", help="Edge/vertex reference (Edge0, Vertex0)")
+@click.option("-e2", "--edge2", "edge_ref2", default=None, help="Second edge reference (for Angle)")
 @click.option("-n", "--name", default=None, help="Dimension name")
 @click.option("-x", type=float, default=100, help="Dimension text X position")
 @click.option("-y", type=float, default=50, help="Dimension text Y position")
 @click.option("-f", "--format", "format_spec", default="%.2f", help="Dimension format string")
+@click.option("--prefix", default="", help="Text prefix (e.g. '2x', '∅'). Auto-set for R/D types.")
+@click.option("--suffix", default="", help="Text suffix (e.g. ' H7', ' THRU')")
+@click.option("--tol-upper", type=float, default=None, help="Upper tolerance (e.g. 0.1)")
+@click.option("--tol-lower", type=float, default=None, help="Lower tolerance (e.g. -0.1)")
 def techdraw_dimension(page_name: str, view_name: str, dim_type: str,
-                       edge_ref: str, name: str | None, x: float, y: float,
-                       format_spec: str) -> None:
-    """Add a dimension to a view on a drawing page."""
+                       edge_ref: str, edge_ref2: str | None, name: str | None,
+                       x: float, y: float, format_spec: str,
+                       prefix: str, suffix: str,
+                       tol_upper: float | None, tol_lower: float | None) -> None:
+    """Add a dimension to a view on a drawing page.
+
+    Supported types: Distance (general), DistanceX (horizontal),
+    DistanceY (vertical), Radius, Diameter, Angle.
+
+    Radius/Diameter auto-prefix with R/∅ unless --prefix overrides.
+    Use --tol-upper/--tol-lower for tolerance annotations (e.g. 20 +0.1/-0.05).
+    """
     _ensure_project()
     from cli_anything.freecad.core.techdraw import add_dimension
     page_obj = _session.get_object(page_name)
@@ -860,8 +939,12 @@ def techdraw_dimension(page_name: str, view_name: str, dim_type: str,
         raise click.ClickException(f"Drawing page not found: {page_name}")
     name = name or _next_name("Dim")
     _session.checkpoint(f"add dimension '{name}' to page '{page_name}'")
-    dim = add_dimension(page_obj, view_name, dim_type=dim_type, edge_ref=edge_ref,
-                        dim_name=name, x=x, y=y, format_spec=format_spec)
+    dim = add_dimension(
+        page_obj, view_name, dim_type=dim_type, edge_ref=edge_ref,
+        edge_ref2=edge_ref2, dim_name=name, x=x, y=y,
+        format_spec=format_spec, prefix=prefix, suffix=suffix,
+        tolerance_upper=tol_upper, tolerance_lower=tol_lower,
+    )
     _session.project["modified"] = True
     _session._auto_save()
     _output(dim, f"Added {dim_type} dimension '{name}' on '{view_name}'")
@@ -1119,6 +1202,268 @@ def techdraw_bom(page_name: str, name: str | None, items_raw: tuple[str, ...],
     _output(bom, f"Added BOM '{name}' ({len(items)} items) to '{page_name}'")
 
 
+@techdraw.command("cosmetic-edge")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Edge name")
+@click.option("--x1", type=float, default=0, help="Start X (mm, relative to view center)")
+@click.option("--y1", type=float, default=0, help="Start Y (mm, relative to view center)")
+@click.option("--x2", type=float, default=50, help="End X (mm, relative to view center)")
+@click.option("--y2", type=float, default=0, help="End Y (mm, relative to view center)")
+@click.option("-s", "--style", default="dashed",
+              type=click.Choice(["solid", "dashed", "dashdot", "dotted", "phantom"]),
+              help="Line style")
+@click.option("-c", "--color", default="#000000", help="Line color (hex)")
+@click.option("-w", "--weight", type=float, default=0.2, help="Line weight (mm)")
+def techdraw_cosmetic_edge(page_name: str, view_name: str, name: str | None,
+                           x1: float, y1: float, x2: float, y2: float,
+                           style: str, color: str, weight: float) -> None:
+    """Add a cosmetic (artificial) edge to a view.
+
+    Cosmetic edges are lines that don't correspond to real geometry.
+    Use for fold lines, cut edges, phantom outlines, reference lines.
+
+    Coordinates are relative to the view center, in mm.
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_cosmetic_edge
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("CosEdge")
+    _session.checkpoint(f"add cosmetic edge '{name}' to page '{page_name}'")
+    edge = add_cosmetic_edge(page_obj, view_name, x1=x1, y1=y1, x2=x2, y2=y2,
+                             edge_name=name, style=style, color=color, weight=weight)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(edge, f"Added cosmetic edge '{name}' ({style}) on '{view_name}'")
+
+
+@techdraw.command("center-mark")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Mark name")
+@click.option("--cx", type=float, default=0, help="Center X (mm, relative to view center)")
+@click.option("--cy", type=float, default=0, help="Center Y (mm, relative to view center)")
+@click.option("--size", type=float, default=5, help="Crosshair arm length (mm)")
+@click.option("-s", "--style", default="dashdot",
+              type=click.Choice(["solid", "dashed", "dashdot", "dotted", "phantom"]),
+              help="Line style")
+@click.option("-c", "--color", default="#000000", help="Line color (hex)")
+@click.option("-w", "--weight", type=float, default=0.15, help="Line weight (mm)")
+def techdraw_center_mark(page_name: str, view_name: str, name: str | None,
+                         cx: float, cy: float, size: float,
+                         style: str, color: str, weight: float) -> None:
+    """Add a center mark (crosshair) to a view.
+
+    Center marks show the center of holes, arcs, or circular features.
+    Rendered as a + crosshair at the specified position.
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_center_mark
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("CtrMark")
+    _session.checkpoint(f"add center mark '{name}' to page '{page_name}'")
+    mark = add_center_mark(page_obj, view_name, cx=cx, cy=cy, mark_name=name,
+                           size=size, style=style, color=color, weight=weight)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(mark, f"Added center mark '{name}' at ({cx},{cy}) on '{view_name}'")
+
+
+@techdraw.command("clip")
+@click.argument("page_name")
+@click.option("-n", "--name", default=None, help="Clip group name")
+@click.option("-x", type=float, default=100, help="Center X position (mm)")
+@click.option("-y", type=float, default=100, help="Center Y position (mm)")
+@click.option("-w", "--width", type=float, default=80, help="Clip width (mm)")
+@click.option("-H", "--height", type=float, default=60, help="Clip height (mm)")
+@click.option("--no-frame", is_flag=True, help="Hide the clip boundary frame")
+def techdraw_clip(page_name: str, name: str | None, x: float, y: float,
+                  width: float, height: float, no_frame: bool) -> None:
+    """Create a clip group (rectangular mask) on a drawing page.
+
+    Views added to this clip group will be masked to the rectangle.
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_clip_group
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Clip")
+    _session.checkpoint(f"add clip group '{name}' to page '{page_name}'")
+    clip = add_clip_group(page_obj, clip_name=name, x=x, y=y,
+                          width=width, height=height, show_frame=not no_frame)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(clip, f"Added clip group '{name}' ({width}x{height} mm) to '{page_name}'")
+
+
+@techdraw.command("clip-add")
+@click.argument("page_name")
+@click.argument("clip_name")
+@click.argument("view_name")
+def techdraw_clip_add(page_name: str, clip_name: str, view_name: str) -> None:
+    """Add an existing view to a clip group.
+
+    The view will be masked to the clip rectangle boundaries.
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_view_to_clip
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    _session.checkpoint(f"add view '{view_name}' to clip '{clip_name}'")
+    result = add_view_to_clip(page_obj, clip_name, view_name)
+    if result is None:
+        raise click.ClickException(
+            f"Clip group '{clip_name}' or view '{view_name}' not found on '{page_name}'")
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(result, f"Added view '{view_name}' to clip group '{clip_name}'")
+
+
+@techdraw.command("gdt")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-c", "--characteristic", required=True,
+              type=click.Choice([
+                  "flatness", "straightness", "circularity", "cylindricity",
+                  "perpendicularity", "parallelism", "angularity",
+                  "position", "concentricity", "symmetry",
+                  "circular_runout", "total_runout",
+                  "profile_line", "profile_surface",
+              ]),
+              help="GD&T characteristic type (ISO 1101)")
+@click.option("-t", "--tolerance", type=float, required=True, help="Tolerance value (mm)")
+@click.option("-d", "--datum", "datum_refs", multiple=True,
+              help="Datum reference letter (repeat for multiple, max 3)")
+@click.option("-m", "--material-condition", default="RFS",
+              type=click.Choice(["MMC", "LMC", "RFS"]),
+              help="Material condition modifier")
+@click.option("--diameter-zone", is_flag=True, help="Use diameter (∅) tolerance zone")
+@click.option("-n", "--name", default=None, help="GD&T annotation name")
+@click.option("-x", type=float, default=100, help="X position on page (mm)")
+@click.option("-y", type=float, default=80, help="Y position on page (mm)")
+def techdraw_gdt(page_name: str, view_name: str, characteristic: str,
+                 tolerance: float, datum_refs: tuple[str, ...],
+                 material_condition: str, diameter_zone: bool,
+                 name: str | None, x: float, y: float) -> None:
+    """Add a geometric tolerance frame (GD&T / Feature Control Frame).
+
+    Creates an ISO 1101 / ASME Y14.5 compliant feature control frame with
+    characteristic symbol, tolerance value, material condition, and datum refs.
+
+    Examples:
+      # Position tolerance 0.05mm relative to datums A and B
+      techdraw gdt Sheet1 V1 -c position -t 0.05 -d A -d B
+
+      # Flatness 0.01mm (no datums needed for form tolerances)
+      techdraw gdt Sheet1 V1 -c flatness -t 0.01
+
+      # Perpendicularity 0.1mm to datum A, MMC
+      techdraw gdt Sheet1 V1 -c perpendicularity -t 0.1 -d A -m MMC
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_geometric_tolerance
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("GDT")
+    _session.checkpoint(f"add GD&T '{name}' to page '{page_name}'")
+    gdt = add_geometric_tolerance(
+        page_obj, view_name, characteristic=characteristic,
+        tolerance=tolerance, gdt_name=name,
+        datum_refs=list(datum_refs), material_condition=material_condition,
+        diameter_zone=diameter_zone, x=x, y=y,
+    )
+    _session.project["modified"] = True
+    _session._auto_save()
+    datum_str = f" [{', '.join(datum_refs)}]" if datum_refs else ""
+    _output(gdt, f"Added GD&T '{name}' ({characteristic} {tolerance}){datum_str}")
+
+
+@techdraw.command("datum")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.argument("letter")
+@click.option("-n", "--name", default=None, help="Datum symbol name")
+@click.option("-x", type=float, default=100, help="X position on page (mm)")
+@click.option("-y", type=float, default=100, help="Y position on page (mm)")
+def techdraw_datum(page_name: str, view_name: str, letter: str,
+                   name: str | None, x: float, y: float) -> None:
+    """Add a datum feature symbol (triangle + letter box) to a view.
+
+    Per ISO 5459 / ASME Y14.5. Place on a surface or edge to define
+    a datum reference for geometric tolerances.
+
+    Example:
+      techdraw datum Sheet1 V1 A -x 50 -y 120
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_datum_symbol
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Datum")
+    _session.checkpoint(f"add datum '{name}' to page '{page_name}'")
+    datum = add_datum_symbol(page_obj, view_name, letter=letter,
+                             datum_name=name, x=x, y=y)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(datum, f"Added datum '{letter}' ('{name}') to view '{view_name}'")
+
+
+@techdraw.command("surface-finish")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("--ra", type=float, default=None, help="Ra roughness value (µm)")
+@click.option("--rz", type=float, default=None, help="Rz roughness value (µm)")
+@click.option("-p", "--process", default="any",
+              type=click.Choice(["any", "removal_required", "removal_prohibited"]),
+              help="Manufacturing process requirement")
+@click.option("--lay", "lay_direction", default="", help="Lay direction symbol (=, ⊥, X, M, C, R)")
+@click.option("-n", "--name", default=None, help="Surface finish name")
+@click.option("-x", type=float, default=100, help="X position on page (mm)")
+@click.option("-y", type=float, default=100, help="Y position on page (mm)")
+def techdraw_surface_finish(page_name: str, view_name: str,
+                            ra: float | None, rz: float | None,
+                            process: str, lay_direction: str,
+                            name: str | None, x: float, y: float) -> None:
+    """Add a surface finish (roughness) symbol to a view.
+
+    Per ISO 1302. Specifies surface texture requirements.
+
+    Examples:
+      # Ra 1.6 µm, machining required
+      techdraw surface-finish Sheet1 V1 --ra 1.6 -p removal_required
+
+      # Rz 6.3 µm, any process
+      techdraw surface-finish Sheet1 V1 --rz 6.3
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_surface_finish
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    if ra is None and rz is None:
+        raise click.ClickException("Specify at least --ra or --rz roughness value")
+    name = name or _next_name("SurfFinish")
+    _session.checkpoint(f"add surface finish '{name}' to page '{page_name}'")
+    sf = add_surface_finish(page_obj, view_name, ra=ra, rz=rz, process=process,
+                            sf_name=name, lay_direction=lay_direction, x=x, y=y)
+    _session.project["modified"] = True
+    _session._auto_save()
+    vals = []
+    if ra is not None:
+        vals.append(f"Ra={ra}")
+    if rz is not None:
+        vals.append(f"Rz={rz}")
+    _output(sf, f"Added surface finish '{name}' ({', '.join(vals)}) to view '{view_name}'")
+
+
 @techdraw.command("list")
 @click.argument("page_name")
 def techdraw_list(page_name: str) -> None:
@@ -1141,6 +1486,11 @@ def techdraw_list(page_name: str) -> None:
         "leaders": params.get("leaders", []),
         "balloons": params.get("balloons", []),
         "bom": params.get("bom", []),
+        "cosmetic_edges": params.get("cosmetic_edges", []),
+        "clips": params.get("clips", []),
+        "gdt": params.get("gdt", []),
+        "datums": params.get("datums", []),
+        "surface_finishes": params.get("surface_finishes", []),
     }
     _output(data)
     if not _json_mode:
@@ -1176,6 +1526,37 @@ def techdraw_list(page_name: str) -> None:
             click.echo(f"BOM tables ({len(data['bom'])}):")
             for bm in data["bom"]:
                 click.echo(f"  - {bm.get('name', '?')} ({len(bm.get('items', []))} items)")
+        if data["cosmetic_edges"]:
+            click.echo(f"Cosmetic edges ({len(data['cosmetic_edges'])}):")
+            for ce in data["cosmetic_edges"]:
+                ctype = "center-mark" if ce.get("type") == "TechDraw::CenterMark" else "edge"
+                click.echo(f"  - {ce.get('name', '?')} [{ctype}, {ce.get('style', '?')}] on {ce.get('view', '?')}")
+        if data["clips"]:
+            click.echo(f"Clip groups ({len(data['clips'])}):")
+            for cl in data["clips"]:
+                vcount = len(cl.get("views", []))
+                click.echo(f"  - {cl.get('name', '?')} ({cl.get('width', 0)}x{cl.get('height', 0)} mm, {vcount} views)")
+        if data["gdt"]:
+            click.echo(f"GD&T ({len(data['gdt'])}):")
+            for g in data["gdt"]:
+                refs = ", ".join(g.get("datum_refs", []))
+                ref_str = f" [{refs}]" if refs else ""
+                click.echo(f"  - {g.get('name', '?')} [{g.get('characteristic', '?')}] "
+                           f"{g.get('symbol', '')} {g.get('tolerance', '?')}{ref_str}")
+        if data["datums"]:
+            click.echo(f"Datums ({len(data['datums'])}):")
+            for d in data["datums"]:
+                click.echo(f"  - {d.get('name', '?')} [{d.get('letter', '?')}] on {d.get('view', '?')}")
+        if data["surface_finishes"]:
+            click.echo(f"Surface finishes ({len(data['surface_finishes'])}):")
+            for sf in data["surface_finishes"]:
+                vals = []
+                if sf.get("ra") is not None:
+                    vals.append(f"Ra={sf['ra']}")
+                if sf.get("rz") is not None:
+                    vals.append(f"Rz={sf['rz']}")
+                click.echo(f"  - {sf.get('name', '?')} [{sf.get('process', '?')}] "
+                           f"{', '.join(vals)} on {sf.get('view', '?')}")
 
 
 @techdraw.command("export-dxf")
@@ -1377,6 +1758,9 @@ def repl(ctx: click.Context, project_path: str | None) -> None:
         "techdraw export-dxf <page> <path>": "Export to DXF",
         "techdraw export-svg <page> <path>": "Export to SVG",
         "techdraw export-pdf <page> <path>": "Export to PDF",
+        "techdraw gdt <page> <view> -c TYPE -t TOL": "Add GD&T frame",
+        "techdraw datum <page> <view> <letter>": "Add datum symbol",
+        "techdraw surface-finish <page> <view> --ra/--rz": "Surface finish",
         "export render <path> [-p FORMAT]": "Export to format",
         "export formats": "List formats",
         "session status": "Session status",

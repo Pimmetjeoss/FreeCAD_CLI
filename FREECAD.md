@@ -88,10 +88,24 @@ geometry kernel and provides a rich Python scripting API.
 - `techdraw leader` — add leader lines (reference lines with text and arrows)
 - `techdraw balloon` — add balloons (item number references, circular/rectangular/triangle/hexagon)
 - `techdraw bom` — add Bill of Materials table (stuklijst)
-- `techdraw list` — list all elements on a drawing page
+- `techdraw gdt` — add a geometric tolerance frame (Feature Control Frame, ISO 1101 / ASME Y14.5)
+- `techdraw datum` — add a datum feature symbol (triangle + letter, ISO 5459)
+- `techdraw surface-finish` — add a surface finish symbol (Ra/Rz roughness, ISO 1302)
+- `techdraw list` — list all elements on a drawing page (including GD&T, datums, surface finishes)
 - `techdraw export-dxf` — export drawing to DXF
-- `techdraw export-svg` — export drawing to SVG (includes all annotations, centerlines, hatches, balloons, BOM)
+- `techdraw export-svg` — export drawing to SVG (includes all annotations, centerlines, hatches, balloons, BOM, GD&T)
 - `techdraw export-pdf` — export drawing to PDF
+
+#### GD&T Characteristics (ISO 1101)
+| Category | Characteristics |
+|----------|----------------|
+| Form | flatness ⏥, straightness ⏤, circularity ○, cylindricity ⌭ |
+| Orientation | perpendicularity ⊥, parallelism ∥, angularity ∠ |
+| Location | position ⌖, concentricity ◎, symmetry ⌯ |
+| Runout | circular_runout ↗, total_runout ⇗ |
+| Profile | profile_line ⌒, profile_surface ⌓ |
+
+Material conditions: MMC (Ⓜ), LMC (Ⓛ), RFS (default)
 
 ### 6. Export
 - `export step` — export to STEP format
