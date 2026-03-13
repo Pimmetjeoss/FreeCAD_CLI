@@ -1,20 +1,20 @@
 # FreeCAD CLI
 
-Een command-line interface voor **FreeCAD** waarmee je parametrische 3D-modellen kunt maken, bewerken en exporteren zonder de GUI te openen. Inclusief volledige ondersteuning voor 2D bouwtekeningen (TechDraw).
+A command-line interface for **FreeCAD** that lets you create, modify, and export parametric 3D models without opening the GUI. Includes full support for 2D fabrication drawings (TechDraw).
 
-## Kenmerken
+## Features
 
-- **3D Modellering** - Primitieven (box, cilinder, bol, kegel, torus), boolean-operaties, positionering
-- **2D Sketches** - Lijnen, cirkels, bogen, rechthoeken met constraints
-- **TechDraw Bouwtekeningen** - Aanzichten, projectiegroepen, doorsneden, uitvergrotingen, maatvoering, titelblok, hartlijnen, arceringen, verwijslijnen, ballonnen, stuklijst (BOM)
-- **Export** - STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
-- **Interactieve REPL** en one-shot commando's
-- **JSON output** voor AI-agent integratie
-- **Undo/redo** met sessie-geschiedenis
+- **3D Modeling** — Primitives (box, cylinder, sphere, cone, torus), boolean operations, positioning
+- **2D Sketches** — Lines, circles, arcs, rectangles with constraints
+- **TechDraw Drawings** — Views, projection groups, cross-sections, detail views, dimensions, title block, centerlines, hatches, leader lines, balloons, bill of materials (BOM)
+- **Export** — STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
+- **Interactive REPL** and one-shot commands
+- **JSON output** for AI agent integration
+- **Undo/redo** with session history
 
-## Vereisten
+## Prerequisites
 
-**FreeCAD** moet geinstalleerd zijn:
+**FreeCAD** must be installed:
 
 ```bash
 # Debian/Ubuntu
@@ -30,12 +30,12 @@ pacman -S freecad
 winget install FreeCAD
 ```
 
-Controleer:
+Verify:
 ```bash
 freecadcmd --version
 ```
 
-## Installatie
+## Installation
 
 ```bash
 git clone https://github.com/Pimmetjeoss/FreeCAD_CLI.git
@@ -43,38 +43,38 @@ cd FreeCAD_CLI
 pip install -e .
 ```
 
-## Snelstart
+## Quick Start
 
 ```bash
-# Nieuw project
-cli-anything-freecad project new -n Dressoir -o dressoir.json
+# Create a new project
+cli-anything-freecad project new -n Cabinet -o cabinet.json
 
-# 3D objecten toevoegen
-cli-anything-freecad --project dressoir.json part box -l 900 -w 500 -H 800 -n Kast
-cli-anything-freecad --project dressoir.json part box -l 900 -w 500 -H 20 -n Bovenpaneel --pz 800
+# Add 3D objects
+cli-anything-freecad --project cabinet.json part box -l 900 -w 500 -H 800 -n Body
+cli-anything-freecad --project cabinet.json part box -l 900 -w 500 -H 20 -n TopPanel --pz 800
 
-# Bouwtekening maken
-cli-anything-freecad --project dressoir.json techdraw page -n Blad1 -t A3_Landscape -s 0.1
-cli-anything-freecad --project dressoir.json techdraw view Blad1 Kast -d front-elevation
-cli-anything-freecad --project dressoir.json techdraw view Blad1 Kast -d side-elevation -x 300
-cli-anything-freecad --project dressoir.json techdraw dimension Blad1 View -t DistanceX
-cli-anything-freecad --project dressoir.json techdraw title-block Blad1 \
-  --title "Bouwtekening Dressoir" --material "Eiken massief" --scale "1:10"
+# Create a fabrication drawing
+cli-anything-freecad --project cabinet.json techdraw page -n Sheet1 -t A3_Landscape -s 0.1
+cli-anything-freecad --project cabinet.json techdraw view Sheet1 Body -d front-elevation
+cli-anything-freecad --project cabinet.json techdraw view Sheet1 Body -d side-elevation -x 300
+cli-anything-freecad --project cabinet.json techdraw dimension Sheet1 View -t DistanceX
+cli-anything-freecad --project cabinet.json techdraw title-block Sheet1 \
+  --title "Cabinet Drawing" --material "Solid Oak" --scale "1:10"
 
-# Stuklijst
-cli-anything-freecad --project dressoir.json techdraw bom Blad1 \
-  -i "item=1,name=Kast,material=Eiken,quantity=1" \
-  -i "item=2,name=Bovenpaneel,material=Eiken,quantity=1"
+# Bill of materials
+cli-anything-freecad --project cabinet.json techdraw bom Sheet1 \
+  -i "item=1,name=Body,material=Oak,quantity=1" \
+  -i "item=2,name=Top Panel,material=Oak,quantity=1"
 
-# Exporteren
-cli-anything-freecad --project dressoir.json techdraw export-svg Blad1 dressoir.svg --overwrite
-cli-anything-freecad --project dressoir.json export step dressoir.step --overwrite
+# Export
+cli-anything-freecad --project cabinet.json techdraw export-svg Sheet1 cabinet.svg --overwrite
+cli-anything-freecad --project cabinet.json export step cabinet.step --overwrite
 ```
 
-## Commando-overzicht
+## Command Overview
 
-| Groep | Commando's |
-|-------|-----------|
+| Group | Commands |
+|-------|----------|
 | `project` | `new`, `open`, `save`, `info`, `close` |
 | `part` | `box`, `cylinder`, `sphere`, `cone`, `torus`, `fuse`, `cut`, `common`, `fillet`, `chamfer`, `move`, `list` |
 | `sketch` | `new`, `line`, `circle`, `arc`, `rect`, `constrain`, `close`, `list` |
@@ -83,61 +83,61 @@ cli-anything-freecad --project dressoir.json export step dressoir.step --overwri
 | `export` | `step`, `stl`, `obj`, `iges`, `brep`, `render`, `formats` |
 | `session` | `status`, `undo`, `redo`, `history` |
 
-## TechDraw 2D-tekeningen
+## TechDraw 2D Drawings
 
-Volledige ondersteuning voor professionele bouwtekeningen:
+Full support for professional fabrication drawings:
 
 ```bash
-# Titelblok
-techdraw title-block Blad1 --title "..." --author "..." --material "..." --scale "1:10"
+# Title block
+techdraw title-block Sheet1 --title "..." --author "..." --material "..." --scale "1:10"
 
-# Uitvergroting (detail view)
-techdraw detail Blad1 Box FrontView --ax 10 --ay 5 -r 15 -s 3.0
+# Detail view (magnification)
+techdraw detail Sheet1 Box FrontView --ax 10 --ay 5 -r 15 -s 3.0
 
-# Hartlijnen
-techdraw centerline Blad1 FrontView -o vertical -p 50
+# Centerlines
+techdraw centerline Sheet1 FrontView -o vertical -p 50
 
-# Arcering (doorsneden)
-techdraw hatch Blad1 SectionView -f Face0 -p ansi31
+# Hatching (cross-sections)
+techdraw hatch Sheet1 SectionView -f Face0 -p ansi31
 
-# Verwijslijnen
-techdraw leader Blad1 FrontView --sx 10 --sy 20 --ex 60 --ey 70 -t "Zie detail A"
+# Leader lines
+techdraw leader Sheet1 FrontView --sx 10 --sy 20 --ex 60 --ey 70 -t "See detail A"
 
-# Ballonnen (itemnummering)
-techdraw balloon Blad1 FrontView -t "1" -s circular -x 80 -y 30
+# Balloons (item numbering)
+techdraw balloon Sheet1 FrontView -t "1" -s circular -x 80 -y 30
 
-# Stuklijst (BOM)
-techdraw bom Blad1 -i "item=1,name=Zijpaneel,material=Eiken,quantity=2"
+# Bill of Materials (BOM)
+techdraw bom Sheet1 -i "item=1,name=Side Panel,material=Oak,quantity=2"
 ```
 
-## JSON modus
+## JSON Mode
 
-Alle commando's ondersteunen `--json` output voor integratie met AI-agents:
+All commands support `--json` output for AI agent integration:
 
 ```bash
 cli-anything-freecad --json --project p.json part box -l 20
 # {"name": "Box", "type": "Part::Box", "params": {"length": 20.0, ...}}
 ```
 
-## Architectuur
+## Architecture
 
 ```
 cli_anything/freecad/
   freecad_cli.py          # Click CLI entry point + REPL
   core/
     project.py            # Project state (JSON) + FreeCAD script generation
-    session.py            # Undo/redo met deep-copy snapshots
-    techdraw.py           # 2D tekeningen, views, dimensies, export
+    session.py            # Undo/redo with deep-copy snapshots
+    techdraw.py           # 2D drawings, views, dimensions, export
     export.py             # Export pipeline (project -> FCStd -> STEP/STL/etc.)
   utils/
     freecad_backend.py    # freecadcmd subprocess wrapper
-    repl_skin.py          # Interactieve REPL styling
+    repl_skin.py          # Interactive REPL styling
   tests/
     test_core.py          # Unit + CLI tests (132 tests)
-    test_full_e2e.py      # End-to-end tests met FreeCAD backend
+    test_full_e2e.py      # End-to-end tests with FreeCAD backend
 ```
 
-De CLI slaat projectstatus op als JSON. Bij export/save genereert het een FreeCAD Python-script en voert het uit via `freecadcmd` (headless). Zo gebruikt alle geometrie de echte OpenCASCADE kernel.
+The CLI stores project state as JSON. On export/save it generates a FreeCAD Python script and executes it via `freecadcmd` (headless), so all geometry uses the real OpenCASCADE kernel.
 
 ## Tests
 
@@ -146,6 +146,6 @@ pip install -e .
 pytest cli_anything/freecad/tests/ -v
 ```
 
-## Licentie
+## License
 
 MIT
