@@ -273,6 +273,276 @@ def add_annotation(
     return anno
 
 
+def set_title_block(
+    page_obj: dict[str, Any],
+    fields: dict[str, str],
+) -> dict[str, Any]:
+    """Set title block fields on a TechDraw page.
+
+    Supported fields: title, author, date, scale, material, revision,
+    company, drawing_number, sheet, checked_by, approved_by.
+
+    Args:
+        page_obj: Page object dict.
+        fields: Dict of field name → value.
+
+    Returns:
+        Title block dict.
+    """
+    title_block = {
+        "type": "TitleBlock",
+        **fields,
+    }
+    page_obj["params"]["title_block"] = title_block
+    return title_block
+
+
+def add_detail_view(
+    page_obj: dict[str, Any],
+    source_name: str,
+    base_view_name: str,
+    detail_name: str = "Detail",
+    anchor_x: float = 0,
+    anchor_y: float = 0,
+    radius: float = 20,
+    scale: float = 2.0,
+    x: float = 250,
+    y: float = 80,
+) -> dict[str, Any]:
+    """Add a detail (magnified) view to a TechDraw page.
+
+    Args:
+        page_obj: Page object dict.
+        source_name: Name of the 3D source object.
+        base_view_name: Name of the base view to zoom into.
+        detail_name: Name for the detail view.
+        anchor_x: X center of the detail circle on the base view.
+        anchor_y: Y center of the detail circle on the base view.
+        radius: Radius of the detail highlight circle (mm).
+        scale: Detail view magnification scale.
+        x: X position on page (mm).
+        y: Y position on page (mm).
+
+    Returns:
+        Detail view dict.
+    """
+    detail = {
+        "name": detail_name,
+        "type": "TechDraw::DrawViewDetail",
+        "source": source_name,
+        "base_view": base_view_name,
+        "anchor_x": anchor_x,
+        "anchor_y": anchor_y,
+        "radius": radius,
+        "scale": scale,
+        "x": x,
+        "y": y,
+    }
+    page_obj["params"]["views"].append(detail)
+    return detail
+
+
+def add_centerline(
+    page_obj: dict[str, Any],
+    view_name: str,
+    cl_name: str = "CenterLine",
+    orientation: str = "vertical",
+    position: float = 0,
+    extent_low: float = -10,
+    extent_high: float = 10,
+) -> dict[str, Any]:
+    """Add a centerline to a view on a TechDraw page.
+
+    Args:
+        page_obj: Page object dict.
+        view_name: Name of the view to add the centerline to.
+        cl_name: Name for the centerline object.
+        orientation: 'vertical' or 'horizontal'.
+        position: Position along the perpendicular axis (mm).
+        extent_low: Start extent (mm).
+        extent_high: End extent (mm).
+
+    Returns:
+        Centerline dict.
+    """
+    centerline = {
+        "name": cl_name,
+        "type": "TechDraw::CenterLine",
+        "view": view_name,
+        "orientation": orientation,
+        "position": position,
+        "extent_low": extent_low,
+        "extent_high": extent_high,
+    }
+    page_obj["params"].setdefault("centerlines", []).append(centerline)
+    return centerline
+
+
+def add_hatch(
+    page_obj: dict[str, Any],
+    view_name: str,
+    face_ref: str = "Face0",
+    hatch_name: str = "Hatch",
+    pattern: str = "ansi31",
+    scale: float = 1.0,
+    rotation: float = 0,
+    color: str = "#000000",
+) -> dict[str, Any]:
+    """Add a hatch pattern to a face in a view.
+
+    Args:
+        page_obj: Page object dict.
+        view_name: Name of the view containing the face.
+        face_ref: Face reference (Face0, Face1, etc.).
+        hatch_name: Name for the hatch object.
+        pattern: Hatch pattern name (ansi31, ansi32, etc.).
+        scale: Hatch pattern scale.
+        rotation: Hatch pattern rotation (degrees).
+        color: Hatch line color (hex string).
+
+    Returns:
+        Hatch dict.
+    """
+    hatch = {
+        "name": hatch_name,
+        "type": "TechDraw::DrawHatch",
+        "view": view_name,
+        "face_ref": face_ref,
+        "pattern": pattern,
+        "scale": scale,
+        "rotation": rotation,
+        "color": color,
+    }
+    page_obj["params"].setdefault("hatches", []).append(hatch)
+    return hatch
+
+
+def add_leader_line(
+    page_obj: dict[str, Any],
+    view_name: str,
+    leader_name: str = "Leader",
+    start_x: float = 0,
+    start_y: float = 0,
+    end_x: float = 50,
+    end_y: float = 50,
+    text: str = "",
+    arrow_style: str = "filled",
+) -> dict[str, Any]:
+    """Add a leader line (reference line with text) to a view.
+
+    Args:
+        page_obj: Page object dict.
+        view_name: Name of the view.
+        leader_name: Name for the leader line object.
+        start_x: Start X on the view (mm).
+        start_y: Start Y on the view (mm).
+        end_x: End X on the page (mm).
+        end_y: End Y on the page (mm).
+        text: Label text at the end of the leader.
+        arrow_style: Arrow head style ('filled', 'open', 'tick', 'dot', 'none').
+
+    Returns:
+        Leader line dict.
+    """
+    leader = {
+        "name": leader_name,
+        "type": "TechDraw::DrawLeaderLine",
+        "view": view_name,
+        "start_x": start_x,
+        "start_y": start_y,
+        "end_x": end_x,
+        "end_y": end_y,
+        "text": text,
+        "arrow_style": arrow_style,
+    }
+    page_obj["params"].setdefault("leaders", []).append(leader)
+    return leader
+
+
+def add_balloon(
+    page_obj: dict[str, Any],
+    view_name: str,
+    balloon_name: str = "Balloon",
+    origin_x: float = 0,
+    origin_y: float = 0,
+    text: str = "1",
+    shape: str = "circular",
+    x: float = 50,
+    y: float = 50,
+) -> dict[str, Any]:
+    """Add a balloon (item number reference) to a view.
+
+    Args:
+        page_obj: Page object dict.
+        view_name: Name of the view.
+        balloon_name: Name for the balloon object.
+        origin_x: Point on the object the balloon references (mm).
+        origin_y: Point on the object the balloon references (mm).
+        text: Balloon text (typically an item number).
+        shape: Balloon shape ('circular', 'rectangular', 'triangle', 'hexagon', 'none').
+        x: X position of balloon on page (mm).
+        y: Y position of balloon on page (mm).
+
+    Returns:
+        Balloon dict.
+    """
+    balloon = {
+        "name": balloon_name,
+        "type": "TechDraw::DrawViewBalloon",
+        "view": view_name,
+        "origin_x": origin_x,
+        "origin_y": origin_y,
+        "text": text,
+        "shape": shape,
+        "x": x,
+        "y": y,
+    }
+    page_obj["params"].setdefault("balloons", []).append(balloon)
+    return balloon
+
+
+def add_bom(
+    page_obj: dict[str, Any],
+    items: list[dict[str, str]],
+    bom_name: str = "BOM",
+    x: float = 200,
+    y: float = 250,
+    font_size: float = 3.5,
+    columns: list[str] | None = None,
+) -> dict[str, Any]:
+    """Add a Bill of Materials (stuklijst) table to a drawing page.
+
+    Each item is a dict with keys matching the column names.
+    Default columns: item, name, material, quantity.
+
+    Args:
+        page_obj: Page object dict.
+        items: List of BOM row dicts.
+        bom_name: Name for the BOM object.
+        x: X position on page (mm).
+        y: Y position on page (mm).
+        font_size: Font size for BOM text (mm).
+        columns: Column header names (default: item, name, material, quantity).
+
+    Returns:
+        BOM dict.
+    """
+    if columns is None:
+        columns = ["item", "name", "material", "quantity"]
+
+    bom = {
+        "name": bom_name,
+        "type": "BOM",
+        "items": items,
+        "columns": columns,
+        "x": x,
+        "y": y,
+        "font_size": font_size,
+    }
+    page_obj["params"].setdefault("bom", []).append(bom)
+    return bom
+
+
 def _build_techdraw_script(project: dict[str, Any], page_name: str) -> str:
     """Build FreeCAD Python script for TechDraw page creation.
 
@@ -397,6 +667,25 @@ def _build_techdraw_script(project: dict[str, Any], page_name: str) -> str:
                 f"_page.addView(_sv)\n"
             )
 
+        elif vtype == "TechDraw::DrawViewDetail":
+            base_view = view.get("base_view", "View")
+            ax = view.get("anchor_x", 0)
+            ay = view.get("anchor_y", 0)
+            r = view.get("radius", 20)
+            detail_scale = view.get("scale", 2.0)
+            x, y = view.get("x", 250), view.get("y", 80)
+            script += (
+                f"\n_dv = doc.addObject('TechDraw::DrawViewDetail', {vname!r})\n"
+                f"_dv.Source = [doc.getObject({source!r})]\n"
+                f"_dv.BaseView = doc.getObject({base_view!r})\n"
+                f"_dv.AnchorPoint = FreeCAD.Vector({ax}, {ay}, 0)\n"
+                f"_dv.Radius = {r}\n"
+                f"_dv.Scale = {detail_scale}\n"
+                f"_dv.X = {x}\n"
+                f"_dv.Y = {y}\n"
+                f"_page.addView(_dv)\n"
+            )
+
     # Recompute before adding dimensions (views need to exist)
     script += "\ndoc.recompute()\n"
 
@@ -438,6 +727,133 @@ def _build_techdraw_script(project: dict[str, Any], page_name: str) -> str:
             f"_a.Y = {y}\n"
             f"_a.TextSize = {font_size}\n"
             f"_page.addView(_a)\n"
+        )
+
+    # Add title block fields to template
+    title_block = params.get("title_block")
+    if title_block:
+        # Map our field names to common FreeCAD SVG template text fields
+        field_map = {
+            "title": ["FC:Title", "DRAWING TITLE", "Title"],
+            "author": ["FC:Author", "AUTHOR", "Designed by"],
+            "date": ["FC:Date", "DATE", "Date"],
+            "scale": ["FC:Scale", "SCALE", "Scale"],
+            "material": ["MATERIAL", "Material"],
+            "revision": ["FC:Revision", "REVISION", "Revision"],
+            "company": ["FC:Company", "COMPANY", "Company"],
+            "drawing_number": ["FC:DrawingNumber", "DRAWING NUMBER", "Drawing number"],
+            "sheet": ["FC:Sheet", "SHEET", "Sheet"],
+            "checked_by": ["CHECKED BY", "Checked by"],
+            "approved_by": ["APPROVED BY", "Approved by"],
+        }
+        script += "\n# ── Title Block ──\n"
+        script += "try:\n"
+        script += "    _tmpl = _page.Template\n"
+        script += "    if _tmpl and hasattr(_tmpl, 'EditableTexts'):\n"
+        script += "        _texts = _tmpl.EditableTexts.copy()\n"
+        for field_name, svg_keys in field_map.items():
+            value = title_block.get(field_name)
+            if value:
+                for svg_key in svg_keys:
+                    script += (
+                        f"        if {svg_key!r} in _texts:\n"
+                        f"            _texts[{svg_key!r}] = {value!r}\n"
+                    )
+        script += "        _tmpl.EditableTexts = _texts\n"
+        script += "except Exception:\n"
+        script += "    pass  # Title block editing may not be available\n"
+
+    # Add centerlines
+    for cl in params.get("centerlines", []):
+        cl_name = cl.get("name", "CenterLine")
+        view_name = cl.get("view", "View")
+        orientation = cl.get("orientation", "vertical")
+        position = cl.get("position", 0)
+        ext_low = cl.get("extent_low", -10)
+        ext_high = cl.get("extent_high", 10)
+        mode = 0 if orientation == "vertical" else 1
+        script += (
+            f"\ntry:\n"
+            f"    _vw = doc.getObject({view_name!r})\n"
+            f"    if _vw:\n"
+            f"        _cl_idx = _vw.makeCenterLine([0], {mode})\n"
+            f"except (AttributeError, RuntimeError):\n"
+            f"    pass  # CenterLine API may vary by FreeCAD version\n"
+        )
+
+    # Add hatches
+    for h in params.get("hatches", []):
+        h_name = h.get("name", "Hatch")
+        view_name = h.get("view", "View")
+        face_ref = h.get("face_ref", "Face0")
+        pattern = h.get("pattern", "ansi31")
+        h_scale = h.get("scale", 1.0)
+        h_rotation = h.get("rotation", 0)
+        h_color = h.get("color", "#000000")
+        script += (
+            f"\ntry:\n"
+            f"    import os as _os\n"
+            f"    _hatch = doc.addObject('TechDraw::DrawHatch', {h_name!r})\n"
+            f"    _hatch.Source = (doc.getObject({view_name!r}), [{face_ref!r}])\n"
+            f"    _pat_dir = _os.path.join(FreeCAD.getResourceDir(), 'Mod', 'TechDraw', 'PAT')\n"
+            f"    for _pf in _os.listdir(_pat_dir) if _os.path.isdir(_pat_dir) else []:\n"
+            f"        if _pf.endswith('.pat'):\n"
+            f"            _hatch.HatchPattern = _os.path.join(_pat_dir, _pf)\n"
+            f"            break\n"
+            f"    _hatch.HatchScale = {h_scale}\n"
+            f"    _hatch.HatchRotation = {h_rotation}\n"
+            f"    _page.addView(_hatch)\n"
+            f"except Exception:\n"
+            f"    pass  # Hatch may not be available in all FreeCAD builds\n"
+        )
+
+    # Add leader lines
+    for ld in params.get("leaders", []):
+        ld_name = ld.get("name", "Leader")
+        view_name = ld.get("view", "View")
+        sx = ld.get("start_x", 0)
+        sy = ld.get("start_y", 0)
+        ex = ld.get("end_x", 50)
+        ey = ld.get("end_y", 50)
+        ld_text = ld.get("text", "")
+        script += (
+            f"\ntry:\n"
+            f"    _ld = doc.addObject('TechDraw::DrawLeaderLine', {ld_name!r})\n"
+            f"    _ld.LeaderParent = doc.getObject({view_name!r})\n"
+            f"    _ld.WayPoints = [FreeCAD.Vector({sx},{sy},0), FreeCAD.Vector({ex},{ey},0)]\n"
+            f"    _page.addView(_ld)\n"
+            f"except Exception:\n"
+            f"    pass  # LeaderLine may not be available\n"
+        )
+
+    # Add balloons
+    for bl in params.get("balloons", []):
+        bl_name = bl.get("name", "Balloon")
+        view_name = bl.get("view", "View")
+        ox = bl.get("origin_x", 0)
+        oy = bl.get("origin_y", 0)
+        bl_text = bl.get("text", "1")
+        bl_x = bl.get("x", 50)
+        bl_y = bl.get("y", 50)
+        bl_shape = bl.get("shape", "circular")
+        shape_map = {
+            "circular": 0, "rectangular": 1, "triangle": 2,
+            "hexagon": 5, "none": 7,
+        }
+        shape_enum = shape_map.get(bl_shape, 0)
+        script += (
+            f"\ntry:\n"
+            f"    _bl = doc.addObject('TechDraw::DrawViewBalloon', {bl_name!r})\n"
+            f"    _bl.SourceView = doc.getObject({view_name!r})\n"
+            f"    _bl.OriginIsSet = True\n"
+            f"    _bl.ShapeIsSet = True\n"
+            f"    _bl.Text = {bl_text!r}\n"
+            f"    _bl.X = {bl_x}\n"
+            f"    _bl.Y = {bl_y}\n"
+            f"    _bl.EndType = {shape_enum}\n"
+            f"    _page.addView(_bl)\n"
+            f"except Exception:\n"
+            f"    pass  # Balloon may not be available\n"
         )
 
     script += "\ndoc.recompute()\n"
@@ -677,6 +1093,180 @@ def export_drawing_svg(
                 f'  <text x="{ann_x}" y="{ly}" font-size="{ann_size}" '
                 f'font-family="sans-serif" fill="black">{line}</text>'
             )
+
+    # Add centerlines (dash-dot pattern)
+    for cl in page_params.get("centerlines", []):
+        cl_view = cl.get("view", "")
+        orientation = cl.get("orientation", "vertical")
+        position = cl.get("position", 0)
+        ext_low = cl.get("extent_low", -10)
+        ext_high = cl.get("extent_high", 10)
+        # Find the view position to place the centerline relative to
+        for v in views:
+            if v.get("name") == cl_view:
+                vx_cl = v.get("x", 100)
+                vy_cl = v.get("y", 150)
+                if orientation == "vertical":
+                    x1 = vx_cl + position * scale
+                    y1 = vy_cl + ext_low * scale
+                    x2 = x1
+                    y2 = vy_cl + ext_high * scale
+                else:
+                    x1 = vx_cl + ext_low * scale
+                    y1 = vy_cl + position * scale
+                    x2 = vx_cl + ext_high * scale
+                    y2 = y1
+                svg_elements.append(
+                    f'  <line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+                    f'stroke="black" stroke-width="0.15" stroke-dasharray="8,2,2,2"/>'
+                )
+                break
+
+    # Add hatches (cross-hatch pattern lines)
+    for h in page_params.get("hatches", []):
+        h_view = h.get("view", "")
+        h_color = h.get("color", "#000000")
+        h_rotation = h.get("rotation", 0)
+        h_scale_val = h.get("scale", 1.0)
+        for v in views:
+            if v.get("name") == h_view:
+                vx_h = v.get("x", 100)
+                vy_h = v.get("y", 150)
+                # Draw hatch lines as a simple diagonal pattern
+                spacing = 3 * h_scale_val
+                for offset in range(-50, 51):
+                    lx = vx_h - 25 + offset * spacing
+                    svg_elements.append(
+                        f'  <line x1="{lx:.1f}" y1="{vy_h - 25:.1f}" '
+                        f'x2="{lx + 25:.1f}" y2="{vy_h + 0:.1f}" '
+                        f'stroke="{h_color}" stroke-width="0.1" opacity="0.5"/>'
+                    )
+                break
+
+    # Add leader lines (arrow + text)
+    for ld in page_params.get("leaders", []):
+        ld_view = ld.get("view", "")
+        sx = ld.get("start_x", 0)
+        sy = ld.get("start_y", 0)
+        ex = ld.get("end_x", 50)
+        ey = ld.get("end_y", 50)
+        ld_text = ld.get("text", "")
+        for v in views:
+            if v.get("name") == ld_view:
+                vx_ld = v.get("x", 100)
+                vy_ld = v.get("y", 150)
+                abs_sx = vx_ld + sx * scale
+                abs_sy = vy_ld - sy * scale
+                abs_ex = vx_ld + ex * scale
+                abs_ey = vy_ld - ey * scale
+                svg_elements.append(
+                    f'  <line x1="{abs_sx:.1f}" y1="{abs_sy:.1f}" '
+                    f'x2="{abs_ex:.1f}" y2="{abs_ey:.1f}" '
+                    f'stroke="black" stroke-width="0.25" marker-end="url(#arrow)"/>'
+                )
+                if ld_text:
+                    svg_elements.append(
+                        f'  <text x="{abs_ex + 2:.1f}" y="{abs_ey:.1f}" '
+                        f'font-size="3.5" font-family="sans-serif" fill="black">{ld_text}</text>'
+                    )
+                break
+
+    # Add balloons (circle + number)
+    for bl in page_params.get("balloons", []):
+        bl_view = bl.get("view", "")
+        bl_text = bl.get("text", "1")
+        bl_x = bl.get("x", 50)
+        bl_y = bl.get("y", 50)
+        bl_ox = bl.get("origin_x", 0)
+        bl_oy = bl.get("origin_y", 0)
+        for v in views:
+            if v.get("name") == bl_view:
+                vx_bl = v.get("x", 100)
+                vy_bl = v.get("y", 150)
+                origin_abs_x = vx_bl + bl_ox * scale
+                origin_abs_y = vy_bl - bl_oy * scale
+                # Leader line from origin to balloon
+                svg_elements.append(
+                    f'  <line x1="{origin_abs_x:.1f}" y1="{origin_abs_y:.1f}" '
+                    f'x2="{bl_x:.1f}" y2="{bl_y:.1f}" '
+                    f'stroke="black" stroke-width="0.25"/>'
+                )
+                # Balloon circle
+                svg_elements.append(
+                    f'  <circle cx="{bl_x:.1f}" cy="{bl_y:.1f}" r="5" '
+                    f'fill="white" stroke="black" stroke-width="0.3"/>'
+                )
+                # Balloon text
+                svg_elements.append(
+                    f'  <text x="{bl_x:.1f}" y="{bl_y + 1.5:.1f}" '
+                    f'font-size="4" font-family="sans-serif" fill="black" '
+                    f'text-anchor="middle">{bl_text}</text>'
+                )
+                break
+
+    # Add BOM table
+    for bom in page_params.get("bom", []):
+        bom_x = bom.get("x", 200)
+        bom_y = bom.get("y", 250)
+        bom_fs = bom.get("font_size", 3.5)
+        columns = bom.get("columns", ["item", "name", "material", "quantity"])
+        items = bom.get("items", [])
+        col_width = 30
+        row_height = bom_fs + 3
+        # Header row
+        for ci, col in enumerate(columns):
+            cx = bom_x + ci * col_width
+            svg_elements.append(
+                f'  <rect x="{cx:.1f}" y="{bom_y:.1f}" '
+                f'width="{col_width}" height="{row_height:.1f}" '
+                f'fill="#e0e0e0" stroke="black" stroke-width="0.2"/>'
+            )
+            svg_elements.append(
+                f'  <text x="{cx + 1:.1f}" y="{bom_y + bom_fs + 1:.1f}" '
+                f'font-size="{bom_fs}" font-family="sans-serif" '
+                f'font-weight="bold" fill="black">{col.upper()}</text>'
+            )
+        # Data rows
+        for ri, item in enumerate(items):
+            ry = bom_y + (ri + 1) * row_height
+            for ci, col in enumerate(columns):
+                cx = bom_x + ci * col_width
+                svg_elements.append(
+                    f'  <rect x="{cx:.1f}" y="{ry:.1f}" '
+                    f'width="{col_width}" height="{row_height:.1f}" '
+                    f'fill="white" stroke="black" stroke-width="0.2"/>'
+                )
+                val = item.get(col, "")
+                svg_elements.append(
+                    f'  <text x="{cx + 1:.1f}" y="{ry + bom_fs + 1:.1f}" '
+                    f'font-size="{bom_fs}" font-family="sans-serif" fill="black">{val}</text>'
+                )
+
+    # Add title block as SVG text in bottom-right
+    title_block = page_params.get("title_block")
+    if title_block:
+        tb_x = page_w - 90
+        tb_y = page_h - 30
+        tb_fields = [
+            ("title", "Titel"),
+            ("drawing_number", "Tek.nr"),
+            ("revision", "Rev"),
+            ("scale", "Schaal"),
+            ("date", "Datum"),
+            ("author", "Getekend"),
+            ("material", "Materiaal"),
+            ("company", "Bedrijf"),
+        ]
+        row_i = 0
+        for field_key, label in tb_fields:
+            val = title_block.get(field_key)
+            if val:
+                ty = tb_y + row_i * 4
+                svg_elements.append(
+                    f'  <text x="{tb_x}" y="{ty}" font-size="2.5" '
+                    f'font-family="sans-serif" fill="black">{label}: {val}</text>'
+                )
+                row_i += 1
 
     # Write SVG
     with open(output_path, "w") as f:

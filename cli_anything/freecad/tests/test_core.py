@@ -30,6 +30,13 @@ from cli_anything.freecad.core.techdraw import (
     add_section_view,
     add_dimension,
     add_annotation,
+    set_title_block,
+    add_detail_view,
+    add_centerline,
+    add_hatch,
+    add_leader_line,
+    add_balloon,
+    add_bom,
     _build_techdraw_script,
     _project_object_2d,
     export_drawing_svg,
@@ -973,3 +980,471 @@ class TestViewDirectionAliases:
         assert VIEW_DIRECTIONS["front"] == (0, 0, 1)
         assert VIEW_DIRECTIONS["top"] == (0, -1, 0)
         assert VIEW_DIRECTIONS["right"] == (1, 0, 0)
+
+
+# ── Title Block tests ───────────────────────────────────────────────
+
+class TestTitleBlock:
+    def test_set_title_block(self):
+        page = create_drawing(create_project())
+        fields = {"title": "Dressoir", "author": "Pim", "date": "2026-03-13",
+                   "material": "Eiken", "scale": "1:10"}
+        tb = set_title_block(page, fields)
+        assert tb["type"] == "TitleBlock"
+        assert tb["title"] == "Dressoir"
+        assert tb["material"] == "Eiken"
+        assert page["params"]["title_block"] is tb
+
+    def test_set_title_block_partial(self):
+        page = create_drawing(create_project())
+        tb = set_title_block(page, {"title": "Only Title"})
+        assert tb["title"] == "Only Title"
+        assert "author" not in tb
+
+    def test_set_title_block_overwrites(self):
+        page = create_drawing(create_project())
+        set_title_block(page, {"title": "First"})
+        tb2 = set_title_block(page, {"title": "Second", "revision": "B"})
+        assert page["params"]["title_block"]["title"] == "Second"
+        assert tb2["revision"] == "B"
+
+    def test_build_techdraw_script_title_block(self):
+        proj = create_project(name="TBTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="P1")
+        set_title_block(page, {"title": "Bouwtekening", "author": "Claude"})
+        proj["objects"].append(page)
+        script = _build_techdraw_script(proj, "P1")
+        assert "Title Block" in script
+        assert "'Bouwtekening'" in script
+
+
+# ── Detail View tests ───────────────────────────────────────────────
+
+class TestDetailView:
+    def test_add_detail_view(self):
+        page = create_drawing(create_project())
+        detail = add_detail_view(page, "Box", "FrontView",
+                                  detail_name="DetailA", anchor_x=10, anchor_y=5,
+                                  radius=15, scale=3.0, x=300, y=60)
+        assert detail["name"] == "DetailA"
+        assert detail["type"] == "TechDraw::DrawViewDetail"
+        assert detail["source"] == "Box"
+        assert detail["base_view"] == "FrontView"
+        assert detail["anchor_x"] == 10
+        assert detail["anchor_y"] == 5
+        assert detail["radius"] == 15
+        assert detail["scale"] == 3.0
+        assert len(page["params"]["views"]) == 1
+
+    def test_detail_view_defaults(self):
+        page = create_drawing(create_project())
+        detail = add_detail_view(page, "Cyl", "V1")
+        assert detail["radius"] == 20
+        assert detail["scale"] == 2.0
+
+    def test_build_techdraw_script_detail(self):
+        proj = create_project(name="DetTest")
+        proj["objects"].append({
+            "name": "Box", "type": "Part::Box",
+            "params": {"length": 20, "width": 15, "height": 10},
+        })
+        page = create_drawing(proj, page_name="P1")
+        add_view(page, "Box", view_name="V1")
+        add_detail_view(page, "Box", "V1", detail_name="DetailB", anchor_x=5, anchor_y=3)
+        proj["objects"].append(page)
+        script = _build_techdraw_script(proj, "P1")
+        assert "TechDraw::DrawViewDetail" in script
+        assert "'DetailB'" in script
+        assert "AnchorPoint" in script
+        assert "Radius" in script
+
+
+# ── Centerline tests ────────────────────────────────────────────────
+
+class TestCenterline:
+    def test_add_centerline(self):
+        page = create_drawing(create_project())
+        cl = add_centerline(page, "FrontView", cl_name="CL1",
+                            orientation="vertical", position=50,
+                            extent_low=-100, extent_high=100)
+        assert cl["name"] == "CL1"
+        assert cl["type"] == "TechDraw::CenterLine"
+        assert cl["view"] == "FrontView"
+        assert cl["orientation"] == "vertical"
+        assert cl["position"] == 50
+        assert page["params"]["centerlines"] == [cl]
+
+    def test_add_centerline_horizontal(self):
+        page = create_drawing(create_project())
+        cl = add_centerline(page, "V1", orientation="horizontal", position=25)
+        assert cl["orientation"] == "horizontal"
+        assert cl["position"] == 25
+
+    def test_multiple_centerlines(self):
+        page = create_drawing(create_project())
+        add_centerline(page, "V1", cl_name="CL1")
+        add_centerline(page, "V1", cl_name="CL2")
+        assert len(page["params"]["centerlines"]) == 2
+
+
+# ── Hatch tests ─────────────────────────────────────────────────────
+
+class TestHatch:
+    def test_add_hatch(self):
+        page = create_drawing(create_project())
+        h = add_hatch(page, "Section1", face_ref="Face0",
+                      hatch_name="H1", pattern="ansi31",
+                      scale=1.5, rotation=45, color="#FF0000")
+        assert h["name"] == "H1"
+        assert h["type"] == "TechDraw::DrawHatch"
+        assert h["view"] == "Section1"
+        assert h["face_ref"] == "Face0"
+        assert h["pattern"] == "ansi31"
+        assert h["scale"] == 1.5
+        assert h["rotation"] == 45
+        assert h["color"] == "#FF0000"
+        assert page["params"]["hatches"] == [h]
+
+    def test_hatch_defaults(self):
+        page = create_drawing(create_project())
+        h = add_hatch(page, "V1")
+        assert h["pattern"] == "ansi31"
+        assert h["scale"] == 1.0
+        assert h["rotation"] == 0
+        assert h["color"] == "#000000"
+
+
+# ── Leader Line tests ───────────────────────────────────────────────
+
+class TestLeaderLine:
+    def test_add_leader_line(self):
+        page = create_drawing(create_project())
+        ld = add_leader_line(page, "V1", leader_name="LD1",
+                             start_x=10, start_y=20, end_x=60, end_y=70,
+                             text="Detail A", arrow_style="filled")
+        assert ld["name"] == "LD1"
+        assert ld["type"] == "TechDraw::DrawLeaderLine"
+        assert ld["view"] == "V1"
+        assert ld["start_x"] == 10
+        assert ld["end_x"] == 60
+        assert ld["text"] == "Detail A"
+        assert ld["arrow_style"] == "filled"
+        assert page["params"]["leaders"] == [ld]
+
+    def test_leader_line_defaults(self):
+        page = create_drawing(create_project())
+        ld = add_leader_line(page, "V1")
+        assert ld["text"] == ""
+        assert ld["arrow_style"] == "filled"
+
+
+# ── Balloon tests ───────────────────────────────────────────────────
+
+class TestBalloon:
+    def test_add_balloon(self):
+        page = create_drawing(create_project())
+        bl = add_balloon(page, "V1", balloon_name="BL1",
+                         origin_x=10, origin_y=20, text="3",
+                         shape="circular", x=80, y=30)
+        assert bl["name"] == "BL1"
+        assert bl["type"] == "TechDraw::DrawViewBalloon"
+        assert bl["view"] == "V1"
+        assert bl["text"] == "3"
+        assert bl["shape"] == "circular"
+        assert bl["x"] == 80
+        assert bl["y"] == 30
+        assert page["params"]["balloons"] == [bl]
+
+    def test_balloon_shapes(self):
+        page = create_drawing(create_project())
+        for shape in ["circular", "rectangular", "triangle", "hexagon", "none"]:
+            bl = add_balloon(page, "V1", balloon_name=f"BL_{shape}", shape=shape)
+            assert bl["shape"] == shape
+
+    def test_multiple_balloons(self):
+        page = create_drawing(create_project())
+        add_balloon(page, "V1", balloon_name="BL1", text="1")
+        add_balloon(page, "V1", balloon_name="BL2", text="2")
+        add_balloon(page, "V1", balloon_name="BL3", text="3")
+        assert len(page["params"]["balloons"]) == 3
+
+
+# ── BOM tests ───────────────────────────────────────────────────────
+
+class TestBOM:
+    def test_add_bom(self):
+        page = create_drawing(create_project())
+        items = [
+            {"item": "1", "name": "Zijpaneel", "material": "Eiken", "quantity": "2"},
+            {"item": "2", "name": "Bovenpaneel", "material": "Eiken", "quantity": "1"},
+        ]
+        bom = add_bom(page, items, bom_name="BOM1", x=150, y=200)
+        assert bom["name"] == "BOM1"
+        assert bom["type"] == "BOM"
+        assert len(bom["items"]) == 2
+        assert bom["columns"] == ["item", "name", "material", "quantity"]
+        assert page["params"]["bom"] == [bom]
+
+    def test_bom_custom_columns(self):
+        page = create_drawing(create_project())
+        bom = add_bom(page, [], columns=["pos", "description", "qty"])
+        assert bom["columns"] == ["pos", "description", "qty"]
+
+    def test_bom_empty_items(self):
+        page = create_drawing(create_project())
+        bom = add_bom(page, [])
+        assert bom["items"] == []
+
+
+# ── CLI tests for new TechDraw commands ─────────────────────────────
+
+class TestTitleBlockCLI:
+    def test_title_block_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "tb_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "title-block", "P1",
+            "--title", "Bouwtekening Dressoir",
+            "--author", "Pim",
+            "--material", "Eiken massief",
+            "--scale", "1:10",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TitleBlock"
+        assert data["title"] == "Bouwtekening Dressoir"
+        assert data["material"] == "Eiken massief"
+
+    def test_title_block_no_fields(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "tb_err.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        result = runner.invoke(cli, ["--project", path, "techdraw", "title-block", "P1"])
+        assert result.exit_code != 0
+        assert "at least one" in result.output.lower()
+
+
+class TestDetailViewCLI:
+    def test_detail_view_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "det_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "detail",
+            "P1", "Box", "V1", "--ax", "10", "--ay", "5", "-r", "15", "-s", "3.0",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TechDraw::DrawViewDetail"
+        assert data["anchor_x"] == 10
+        assert data["scale"] == 3.0
+
+
+class TestCenterlineCLI:
+    def test_centerline_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "cl_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "centerline",
+            "P1", "V1", "-o", "vertical", "-p", "50",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TechDraw::CenterLine"
+        assert data["orientation"] == "vertical"
+        assert data["position"] == 50
+
+
+class TestHatchCLI:
+    def test_hatch_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "h_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "hatch",
+            "P1", "V1", "-f", "Face0", "-p", "ansi32",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TechDraw::DrawHatch"
+        assert data["pattern"] == "ansi32"
+
+
+class TestLeaderCLI:
+    def test_leader_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "ld_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "leader",
+            "P1", "V1", "--sx", "10", "--sy", "20", "--ex", "60", "--ey", "70",
+            "-t", "Zie detail A",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TechDraw::DrawLeaderLine"
+        assert data["text"] == "Zie detail A"
+
+
+class TestBalloonCLI:
+    def test_balloon_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "bl_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "balloon",
+            "P1", "V1", "-t", "5", "-s", "circular", "-x", "80", "-y", "30",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "TechDraw::DrawViewBalloon"
+        assert data["text"] == "5"
+        assert data["shape"] == "circular"
+
+
+class TestBOMCLI:
+    def test_bom_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "bom_test.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "bom", "P1",
+            "-i", "item=1,name=Zijpaneel,material=Eiken,quantity=2",
+            "-i", "item=2,name=Bovenpaneel,material=Eiken,quantity=1",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "BOM"
+        assert len(data["items"]) == 2
+        assert data["items"][0]["name"] == "Zijpaneel"
+
+    def test_bom_custom_columns_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "bom_cols.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        result = runner.invoke(cli, [
+            "--json", "--project", path, "techdraw", "bom", "P1",
+            "--columns", "pos,omschrijving,stuks",
+            "-i", "pos=1,omschrijving=Plank,stuks=4",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["columns"] == ["pos", "omschrijving", "stuks"]
+
+
+# ── SVG export with new features tests ──────────────────────────────
+
+class TestExportSVGNewFeatures:
+    def _make_project_with_all_features(self):
+        proj = create_project(name="FullTest")
+        proj["objects"].append({
+            "name": "MainBox", "type": "Part::Box", "label": "MainBox",
+            "params": {"length": 200, "width": 100, "height": 300},
+        })
+        page = create_drawing(proj, "Sheet1", template="A3_Landscape", scale=0.5)
+        proj["objects"].append(page)
+        add_view(page, "MainBox", "BoxFront", direction="front-elevation", x=100, y=150)
+        set_title_block(page, {"title": "Test Drawing", "author": "Claude", "material": "Steel"})
+        add_centerline(page, "BoxFront", cl_name="CL1", orientation="vertical", position=0)
+        add_hatch(page, "BoxFront", face_ref="Face0", hatch_name="H1")
+        add_leader_line(page, "BoxFront", leader_name="LD1", start_x=10, start_y=20,
+                        end_x=60, end_y=70, text="See detail")
+        add_balloon(page, "BoxFront", balloon_name="BL1", text="1", x=80, y=30)
+        add_bom(page, [
+            {"item": "1", "name": "Box", "material": "Steel", "quantity": "1"},
+        ], bom_name="BOM1", x=300, y=250)
+        return proj
+
+    def test_svg_has_title_block(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "full.svg")
+        result = export_drawing_svg(proj, "Sheet1", out)
+        assert result["success"] is True
+        with open(out) as f:
+            svg = f.read()
+        assert "Test Drawing" in svg
+        assert "Claude" in svg
+
+    def test_svg_has_centerline(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "cl.svg")
+        export_drawing_svg(proj, "Sheet1", out)
+        with open(out) as f:
+            svg = f.read()
+        assert "stroke-dasharray" in svg
+
+    def test_svg_has_hatch(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "hatch.svg")
+        export_drawing_svg(proj, "Sheet1", out)
+        with open(out) as f:
+            svg = f.read()
+        # Hatch generates many lines with opacity
+        assert 'opacity="0.5"' in svg
+
+    def test_svg_has_leader(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "leader.svg")
+        export_drawing_svg(proj, "Sheet1", out)
+        with open(out) as f:
+            svg = f.read()
+        assert "See detail" in svg
+
+    def test_svg_has_balloon(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "balloon.svg")
+        export_drawing_svg(proj, "Sheet1", out)
+        with open(out) as f:
+            svg = f.read()
+        assert "<circle" in svg
+        assert 'text-anchor="middle"' in svg
+
+    def test_svg_has_bom_table(self, tmp_dir):
+        proj = self._make_project_with_all_features()
+        out = os.path.join(tmp_dir, "bom.svg")
+        export_drawing_svg(proj, "Sheet1", out)
+        with open(out) as f:
+            svg = f.read()
+        assert "ITEM" in svg
+        assert "NAME" in svg
+        assert "Steel" in svg
+
+    def test_svg_list_shows_new_types(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "list_new.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "centerline", "P1", "V1"])
+        runner.invoke(cli, ["--json", "--project", path, "techdraw", "balloon", "P1", "V1", "-t", "1"])
+        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "list", "P1"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data["centerlines"]) == 1
+        assert len(data["balloons"]) == 1

@@ -890,6 +890,235 @@ def techdraw_annotate(page_name: str, text: tuple[str, ...], name: str | None,
     _output(anno, f"Added annotation '{name}' to '{page_name}'")
 
 
+@techdraw.command("title-block")
+@click.argument("page_name")
+@click.option("--title", default=None, help="Drawing title")
+@click.option("--author", default=None, help="Author / drawn by")
+@click.option("--date", default=None, help="Date (YYYY-MM-DD)")
+@click.option("--scale", "scale_text", default=None, help="Scale text (e.g. 1:10)")
+@click.option("--material", default=None, help="Material specification")
+@click.option("--revision", default=None, help="Revision number")
+@click.option("--company", default=None, help="Company name")
+@click.option("--drawing-number", default=None, help="Drawing number")
+@click.option("--sheet", default=None, help="Sheet number (e.g. 1/3)")
+@click.option("--checked-by", default=None, help="Checked by")
+@click.option("--approved-by", default=None, help="Approved by")
+def techdraw_title_block(page_name: str, title: str | None, author: str | None,
+                         date: str | None, scale_text: str | None, material: str | None,
+                         revision: str | None, company: str | None, drawing_number: str | None,
+                         sheet: str | None, checked_by: str | None, approved_by: str | None) -> None:
+    """Set title block fields on a drawing page."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import set_title_block
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    fields = {}
+    for key, val in [("title", title), ("author", author), ("date", date),
+                     ("scale", scale_text), ("material", material), ("revision", revision),
+                     ("company", company), ("drawing_number", drawing_number),
+                     ("sheet", sheet), ("checked_by", checked_by), ("approved_by", approved_by)]:
+        if val is not None:
+            fields[key] = val
+    if not fields:
+        raise click.ClickException("Specify at least one title block field (--title, --author, etc.)")
+    _session.checkpoint(f"set title block on '{page_name}'")
+    tb = set_title_block(page_obj, fields)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(tb, f"Set title block on '{page_name}': {', '.join(f'{k}={v}' for k, v in fields.items())}")
+
+
+@techdraw.command("detail")
+@click.argument("page_name")
+@click.argument("source_name")
+@click.argument("base_view_name")
+@click.option("-n", "--name", default=None, help="Detail view name")
+@click.option("--ax", "anchor_x", type=float, default=0, help="Anchor X on base view (mm)")
+@click.option("--ay", "anchor_y", type=float, default=0, help="Anchor Y on base view (mm)")
+@click.option("-r", "--radius", type=float, default=20, help="Detail circle radius (mm)")
+@click.option("-s", "--scale", "detail_scale", type=float, default=2.0, help="Detail magnification scale")
+@click.option("-x", type=float, default=250, help="X position on page (mm)")
+@click.option("-y", type=float, default=80, help="Y position on page (mm)")
+def techdraw_detail(page_name: str, source_name: str, base_view_name: str,
+                    name: str | None, anchor_x: float, anchor_y: float,
+                    radius: float, detail_scale: float, x: float, y: float) -> None:
+    """Add a detail (magnified) view to a drawing page."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_detail_view
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    if not _session.get_object(source_name):
+        raise click.ClickException(f"Source object not found: {source_name}")
+    name = name or _next_name("Detail")
+    _session.checkpoint(f"add detail view '{name}' to page '{page_name}'")
+    detail = add_detail_view(page_obj, source_name, base_view_name,
+                              detail_name=name, anchor_x=anchor_x, anchor_y=anchor_y,
+                              radius=radius, scale=detail_scale, x=x, y=y)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(detail, f"Added detail view '{name}' (scale={detail_scale}x) to '{page_name}'")
+
+
+@techdraw.command("centerline")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Centerline name")
+@click.option("-o", "--orientation", type=click.Choice(["vertical", "horizontal"]),
+              default="vertical", help="Centerline orientation")
+@click.option("-p", "--position", type=float, default=0, help="Position along perpendicular axis (mm)")
+@click.option("--low", "extent_low", type=float, default=-10, help="Start extent (mm)")
+@click.option("--high", "extent_high", type=float, default=10, help="End extent (mm)")
+def techdraw_centerline(page_name: str, view_name: str, name: str | None,
+                        orientation: str, position: float,
+                        extent_low: float, extent_high: float) -> None:
+    """Add a centerline to a view on a drawing page."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_centerline
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("CenterLine")
+    _session.checkpoint(f"add centerline '{name}' to page '{page_name}'")
+    cl = add_centerline(page_obj, view_name, cl_name=name, orientation=orientation,
+                        position=position, extent_low=extent_low, extent_high=extent_high)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(cl, f"Added {orientation} centerline '{name}' to view '{view_name}'")
+
+
+@techdraw.command("hatch")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Hatch name")
+@click.option("-f", "--face", "face_ref", default="Face0", help="Face reference (Face0, Face1, etc.)")
+@click.option("-p", "--pattern", default="ansi31", help="Hatch pattern name")
+@click.option("-s", "--scale", "hatch_scale", type=float, default=1.0, help="Pattern scale")
+@click.option("-r", "--rotation", type=float, default=0, help="Pattern rotation (degrees)")
+@click.option("-c", "--color", default="#000000", help="Hatch color (hex)")
+def techdraw_hatch(page_name: str, view_name: str, name: str | None,
+                   face_ref: str, pattern: str, hatch_scale: float,
+                   rotation: float, color: str) -> None:
+    """Add a hatch pattern to a face in a view."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_hatch
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Hatch")
+    _session.checkpoint(f"add hatch '{name}' to page '{page_name}'")
+    h = add_hatch(page_obj, view_name, face_ref=face_ref, hatch_name=name,
+                  pattern=pattern, scale=hatch_scale, rotation=rotation, color=color)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(h, f"Added hatch '{name}' ({pattern}) to '{view_name}' {face_ref}")
+
+
+@techdraw.command("leader")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Leader line name")
+@click.option("--sx", "start_x", type=float, default=0, help="Start X on view (mm)")
+@click.option("--sy", "start_y", type=float, default=0, help="Start Y on view (mm)")
+@click.option("--ex", "end_x", type=float, default=50, help="End X on page (mm)")
+@click.option("--ey", "end_y", type=float, default=50, help="End Y on page (mm)")
+@click.option("-t", "--text", default="", help="Label text")
+@click.option("-a", "--arrow", "arrow_style", default="filled",
+              type=click.Choice(["filled", "open", "tick", "dot", "none"]),
+              help="Arrow head style")
+def techdraw_leader(page_name: str, view_name: str, name: str | None,
+                    start_x: float, start_y: float, end_x: float, end_y: float,
+                    text: str, arrow_style: str) -> None:
+    """Add a leader line (reference line with text) to a view."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_leader_line
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Leader")
+    _session.checkpoint(f"add leader '{name}' to page '{page_name}'")
+    ld = add_leader_line(page_obj, view_name, leader_name=name,
+                         start_x=start_x, start_y=start_y,
+                         end_x=end_x, end_y=end_y, text=text,
+                         arrow_style=arrow_style)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(ld, f"Added leader '{name}' to view '{view_name}'" + (f" ({text})" if text else ""))
+
+
+@techdraw.command("balloon")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--name", default=None, help="Balloon name")
+@click.option("--ox", "origin_x", type=float, default=0, help="Origin X on object (mm)")
+@click.option("--oy", "origin_y", type=float, default=0, help="Origin Y on object (mm)")
+@click.option("-t", "--text", default="1", help="Balloon text (item number)")
+@click.option("-s", "--shape", default="circular",
+              type=click.Choice(["circular", "rectangular", "triangle", "hexagon", "none"]),
+              help="Balloon shape")
+@click.option("-x", type=float, default=50, help="Balloon X position on page (mm)")
+@click.option("-y", type=float, default=50, help="Balloon Y position on page (mm)")
+def techdraw_balloon(page_name: str, view_name: str, name: str | None,
+                     origin_x: float, origin_y: float, text: str,
+                     shape: str, x: float, y: float) -> None:
+    """Add a balloon (item number reference) to a view."""
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_balloon
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("Balloon")
+    _session.checkpoint(f"add balloon '{name}' to page '{page_name}'")
+    bl = add_balloon(page_obj, view_name, balloon_name=name,
+                     origin_x=origin_x, origin_y=origin_y,
+                     text=text, shape=shape, x=x, y=y)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(bl, f"Added balloon '{name}' ({text}) to view '{view_name}'")
+
+
+@techdraw.command("bom")
+@click.argument("page_name")
+@click.option("-n", "--name", default=None, help="BOM name")
+@click.option("-i", "--item", "items_raw", multiple=True,
+              help="BOM item as 'key1=val1,key2=val2' (repeat for multiple items)")
+@click.option("-x", type=float, default=200, help="X position on page (mm)")
+@click.option("-y", type=float, default=250, help="Y position on page (mm)")
+@click.option("-s", "--font-size", type=float, default=3.5, help="Font size (mm)")
+@click.option("--columns", default=None, help="Comma-separated column names (default: item,name,material,quantity)")
+def techdraw_bom(page_name: str, name: str | None, items_raw: tuple[str, ...],
+                 x: float, y: float, font_size: float, columns: str | None) -> None:
+    """Add a Bill of Materials (stuklijst) table to a drawing page.
+
+    Example: techdraw bom Page -i "item=1,name=Plank,material=Eiken,quantity=4"
+    """
+    _ensure_project()
+    from cli_anything.freecad.core.techdraw import add_bom
+    page_obj = _session.get_object(page_name)
+    if not page_obj or page_obj.get("type") != "TechDraw::DrawPage":
+        raise click.ClickException(f"Drawing page not found: {page_name}")
+    name = name or _next_name("BOM")
+    # Parse items
+    items = []
+    for raw in items_raw:
+        item = {}
+        for pair in raw.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                item[k.strip()] = v.strip()
+        if item:
+            items.append(item)
+    # Parse columns
+    col_list = [c.strip() for c in columns.split(",")] if columns else None
+    _session.checkpoint(f"add BOM '{name}' to page '{page_name}'")
+    bom = add_bom(page_obj, items, bom_name=name, x=x, y=y,
+                  font_size=font_size, columns=col_list)
+    _session.project["modified"] = True
+    _session._auto_save()
+    _output(bom, f"Added BOM '{name}' ({len(items)} items) to '{page_name}'")
+
+
 @techdraw.command("list")
 @click.argument("page_name")
 def techdraw_list(page_name: str) -> None:
@@ -906,6 +1135,12 @@ def techdraw_list(page_name: str) -> None:
         "views": params.get("views", []),
         "dimensions": params.get("dimensions", []),
         "annotations": params.get("annotations", []),
+        "title_block": params.get("title_block"),
+        "centerlines": params.get("centerlines", []),
+        "hatches": params.get("hatches", []),
+        "leaders": params.get("leaders", []),
+        "balloons": params.get("balloons", []),
+        "bom": params.get("bom", []),
     }
     _output(data)
     if not _json_mode:
@@ -919,6 +1154,28 @@ def techdraw_list(page_name: str) -> None:
         click.echo(f"Annotations ({len(data['annotations'])}):")
         for a in data["annotations"]:
             click.echo(f"  - {a.get('name', '?')}: {' '.join(a.get('text', []))}")
+        if data["title_block"]:
+            click.echo(f"Title block: {data['title_block']}")
+        if data["centerlines"]:
+            click.echo(f"Centerlines ({len(data['centerlines'])}):")
+            for cl in data["centerlines"]:
+                click.echo(f"  - {cl.get('name', '?')} [{cl.get('orientation', '?')}] on {cl.get('view', '?')}")
+        if data["hatches"]:
+            click.echo(f"Hatches ({len(data['hatches'])}):")
+            for h in data["hatches"]:
+                click.echo(f"  - {h.get('name', '?')} [{h.get('pattern', '?')}] on {h.get('view', '?')}")
+        if data["leaders"]:
+            click.echo(f"Leaders ({len(data['leaders'])}):")
+            for ld in data["leaders"]:
+                click.echo(f"  - {ld.get('name', '?')} on {ld.get('view', '?')}")
+        if data["balloons"]:
+            click.echo(f"Balloons ({len(data['balloons'])}):")
+            for bl in data["balloons"]:
+                click.echo(f"  - {bl.get('name', '?')} [{bl.get('text', '?')}] on {bl.get('view', '?')}")
+        if data["bom"]:
+            click.echo(f"BOM tables ({len(data['bom'])}):")
+            for bm in data["bom"]:
+                click.echo(f"  - {bm.get('name', '?')} ({len(bm.get('items', []))} items)")
 
 
 @techdraw.command("export-dxf")
