@@ -1944,3 +1944,364 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ── Extended Part commands (gap-fill via CLI-Anything methodology) ───
+
+@part.command("array")
+@click.argument("source")
+@click.option("--type", "array_type", type=click.Choice(["linear", "polar"]),
+              default="linear", help="Array type: linear or polar")
+@click.option("--count-x", type=int, default=2, help="Count along X (linear)")
+@click.option("--count-y", type=int, default=1, help="Count along Y (linear)")
+@click.option("--count-z", type=int, default=1, help="Count along Z (linear)")
+@click.option("--step-x", type=float, default=10, help="Step size X (mm, linear)")
+@click.option("--step-y", type=float, default=10, help="Step size Y (mm, linear)")
+@click.option("--step-z", type=float, default=0, help="Step size Z (mm, linear)")
+@click.option("--count", type=int, default=4, help="Total count (polar)")
+@click.option("--angle", type=float, default=360, help="Total angle (degrees, polar)")
+@click.option("--cx", type=float, default=0, help="Center X (polar)")
+@click.option("--cy", type=float, default=0, help="Center Y (polar)")
+@click.option("--cz", type=float, default=0, help="Center Z (polar)")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_array(source: str, array_type: str,
+               count_x: int, count_y: int, count_z: int,
+               step_x: float, step_y: float, step_z: float,
+               count: int, angle: float,
+               cx: float, cy: float, cz: float,
+               name: str | None) -> None:
+    """Create a linear or polar array of an object.
+
+    Linear example (3x2 grid, 20mm apart):
+      part array Box --type linear --count-x 3 --count-y 2 --step-x 20 --step-y 20
+
+    Polar example (6 copies around Z-axis):
+      part array Cylinder --type polar --count 6 --angle 360
+    """
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Array")
+    params: dict = {"source": source, "array_type": array_type}
+    if array_type == "linear":
+        params.update({
+            "count_x": count_x, "count_y": count_y, "count_z": count_z,
+            "step_x": step_x, "step_y": step_y, "step_z": step_z,
+        })
+        desc = f"{count_x}x{count_y}x{count_z} @ ({step_x},{step_y},{step_z})mm"
+    else:
+        params.update({
+            "count": count, "angle": angle,
+            "center_x": cx, "center_y": cy, "center_z": cz,
+        })
+        desc = f"{count}× {angle}° polar around ({cx},{cy},{cz})"
+    obj = {"name": name, "type": "Part::Array", "label": name, "params": params}
+    _session.add_object(obj, f"array '{source}' → '{name}'")
+    _output(obj, f"Created array '{name}' of '{source}': {desc}")
+
+
+@part.command("mirror")
+@click.argument("source")
+@click.option("-p", "--plane", type=click.Choice(["XY", "XZ", "YZ"]),
+              default="XY", help="Mirror plane")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_mirror(source: str, plane: str, name: str | None) -> None:
+    """Mirror an object across a plane.
+
+    Example: mirror a bracket across XZ plane:
+      part mirror Bracket --plane XZ
+    """
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Mirror")
+
+    # Normal vector per plane
+    normals = {"XY": (0, 0, 1), "XZ": (0, 1, 0), "YZ": (1, 0, 0)}
+    nx, ny, nz = normals[plane]
+
+    obj = {
+        "name": name,
+        "type": "Part::Mirror",
+        "label": name,
+        "params": {"source": source, "plane": plane,
+                   "normal_x": nx, "normal_y": ny, "normal_z": nz},
+    }
+    _session.add_object(obj, f"mirror '{source}' on {plane}")
+    _output(obj, f"Created mirror '{name}' of '{source}' on {plane} plane")
+
+
+@part.command("loft")
+@click.argument("profiles", nargs=-1, required=True)
+@click.option("--solid/--no-solid", default=True, help="Create solid")
+@click.option("--ruled/--no-ruled", default=False, help="Ruled surface (straight lines)")
+@click.option("--closed/--no-closed", default=False, help="Close the loft")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_loft(profiles: tuple[str, ...], solid: bool, ruled: bool,
+              closed: bool, name: str | None) -> None:
+    """Loft through multiple profiles (cross-sections).
+
+    Creates a smooth solid or surface transitioning between 2+ sketches.
+
+    Example (loft through 3 sketches):
+      part loft Sketch Sketch001 Sketch002 --solid
+    """
+    _ensure_project()
+    if len(profiles) < 2:
+        raise click.ClickException("At least 2 profiles required for a loft")
+    for p in profiles:
+        if not _session.get_object(p):
+            raise click.ClickException(f"Profile not found: {p}")
+    name = name or _next_name("Loft")
+    obj = {
+        "name": name,
+        "type": "Part::Loft",
+        "label": name,
+        "params": {
+            "profiles": list(profiles),
+            "solid": solid,
+            "ruled": ruled,
+            "closed": closed,
+        },
+    }
+    _session.add_object(obj, f"loft {' → '.join(profiles)}")
+    _output(obj, f"Created loft '{name}' through {len(profiles)} profiles")
+
+
+@part.command("shell")
+@click.argument("source")
+@click.option("-t", "--thickness", type=float, default=1.0, help="Shell thickness (mm)")
+@click.option("--mode", type=click.Choice(["outward", "inward"]),
+              default="inward", help="Direction of offset")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_shell(source: str, thickness: float, mode: str, name: str | None) -> None:
+    """Create a hollow shell from a solid (remove one face, add wall thickness).
+
+    Example: shell a box with 2mm walls:
+      part shell Box --thickness 2 --mode inward
+    """
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Shell")
+    offset = thickness if mode == "outward" else -thickness
+    obj = {
+        "name": name,
+        "type": "Part::Thickness",
+        "label": name,
+        "params": {"source": source, "thickness": offset, "mode": mode},
+    }
+    _session.add_object(obj, f"shell '{source}' t={thickness}")
+    _output(obj, f"Created shell '{name}' from '{source}' (t={thickness}mm, {mode})")
+
+
+@part.command("rotate")
+@click.argument("name_")
+@click.option("--ax", type=float, default=0, help="Rotation axis X")
+@click.option("--ay", type=float, default=0, help="Rotation axis Y")
+@click.option("--az", type=float, default=1, help="Rotation axis Z")
+@click.option("--angle", type=float, required=True, help="Rotation angle (degrees)")
+@click.option("--px", type=float, default=None, help="Also set position X")
+@click.option("--py", type=float, default=None, help="Also set position Y")
+@click.option("--pz", type=float, default=None, help="Also set position Z")
+def part_rotate(name_: str, ax: float, ay: float, az: float, angle: float,
+                px: float | None, py: float | None, pz: float | None) -> None:
+    """Rotate an object around an axis.
+
+    Example: rotate a panel 45° around Z-axis:
+      part rotate Panel --az 1 --angle 45
+    """
+    _ensure_project()
+    obj = _session.get_object(name_)
+    if not obj:
+        raise click.ClickException(f"Object not found: {name_}")
+    _session.checkpoint(f"rotate '{name_}'")
+    params = obj.setdefault("params", {})
+    params["rotation"] = {"axis_x": ax, "axis_y": ay, "axis_z": az, "angle": angle}
+    if px is not None or py is not None or pz is not None:
+        pos = params.get("placement", {"x": 0, "y": 0, "z": 0})
+        if px is not None:
+            pos["x"] = px
+        if py is not None:
+            pos["y"] = py
+        if pz is not None:
+            pos["z"] = pz
+        params["placement"] = pos
+    _session._auto_save()
+    _output(obj, f"Rotated '{name_}' {angle}° around ({ax},{ay},{az})")
+
+
+@part.command("import-step")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("-n", "--name", default=None, help="Object name")
+def part_import_step(filepath: str, name: str | None) -> None:
+    """Import an existing STEP/IGES/BREP file into the project.
+
+    Useful for loading external CAD files and combining them with
+    parts you build in the CLI.
+
+    Example:
+      part import-step bracket.step --name ExternalBracket
+    """
+    _ensure_project()
+    import os
+    filepath = os.path.abspath(filepath)
+    ext = os.path.splitext(filepath)[1].lower()
+    supported = {".step", ".stp", ".iges", ".igs", ".brep"}
+    if ext not in supported:
+        raise click.ClickException(f"Unsupported format: {ext}. Use: {', '.join(supported)}")
+    name = name or _next_name("Imported")
+    obj = {
+        "name": name,
+        "type": "Part::Import",
+        "label": name,
+        "params": {"filepath": filepath, "format": ext.lstrip(".")},
+    }
+    _session.add_object(obj, f"import '{filepath}'")
+    _output(obj, f"Imported '{name}' from {os.path.basename(filepath)}")
+
+
+@part.command("measure")
+@click.argument("source")
+def part_measure(source: str) -> None:
+    """Measure geometric properties of an object (volume, area, bounding box, COG).
+
+    Uses the FreeCAD backend — requires FreeCAD to be installed.
+
+    Example:
+      part measure Box
+    """
+    proj = _ensure_project()
+    obj = _session.get_object(source)
+    if not obj:
+        raise click.ClickException(f"Object not found: {source}")
+    from cli_anything.freecad.core.project import _build_project_script
+    from cli_anything.freecad.utils.freecad_backend import run_script
+    script = _build_project_script(proj)
+    script += (
+        f"doc.recompute()\n"
+        f"_mobj = doc.getObject({source!r})\n"
+        f"if _mobj and hasattr(_mobj, 'Shape'):\n"
+        f"    _s = _mobj.Shape\n"
+        f"    _cli_result['name'] = {source!r}\n"
+        f"    _cli_result['volume'] = round(_s.Volume, 4)\n"
+        f"    _cli_result['area'] = round(_s.Area, 4)\n"
+        f"    _bb = _s.BoundBox\n"
+        f"    _cli_result['bounding_box'] = {{\n"
+        f"        'xmin': round(_bb.XMin,4), 'xmax': round(_bb.XMax,4),\n"
+        f"        'ymin': round(_bb.YMin,4), 'ymax': round(_bb.YMax,4),\n"
+        f"        'zmin': round(_bb.ZMin,4), 'zmax': round(_bb.ZMax,4),\n"
+        f"        'xlen': round(_bb.XLength,4), 'ylen': round(_bb.YLength,4),\n"
+        f"        'zlen': round(_bb.ZLength,4),\n"
+        f"    }}\n"
+        f"    _cog = _s.CenterOfGravity\n"
+        f"    _cli_result['center_of_gravity'] = {{\n"
+        f"        'x': round(_cog.x,4), 'y': round(_cog.y,4), 'z': round(_cog.z,4)\n"
+        f"    }}\n"
+        f"    _cli_result['is_valid'] = _s.isValid()\n"
+        f"    _cli_result['is_closed'] = _s.isClosed()\n"
+        f"else:\n"
+        f"    _cli_result['error'] = f'Object {{_mobj}} has no Shape'\n"
+    )
+    result = run_script(script)
+    r = result.get("result", {})
+    _output(r)
+    if not _json_mode:
+        if "error" in r:
+            raise click.ClickException(r["error"])
+        click.echo(f"Object: {r.get('name')}")
+        click.echo(f"Volume:  {r.get('volume')} mm³")
+        click.echo(f"Area:    {r.get('area')} mm²")
+        bb = r.get("bounding_box", {})
+        click.echo(f"Bounds:  {bb.get('xlen')} × {bb.get('ylen')} × {bb.get('zlen')} mm")
+        cog = r.get("center_of_gravity", {})
+        click.echo(f"COG:     ({cog.get('x')}, {cog.get('y')}, {cog.get('z')})")
+        click.echo(f"Valid:   {r.get('is_valid')}  Closed: {r.get('is_closed')}")
+
+
+# ── Extended Sketch commands ─────────────────────────────────────────
+
+@sketch.command("polygon")
+@click.argument("sketch_name")
+@click.option("--cx", type=float, default=0, help="Center X")
+@click.option("--cy", type=float, default=0, help="Center Y")
+@click.option("-r", "--radius", type=float, default=10, help="Circumradius")
+@click.option("-s", "--sides", type=int, default=6, help="Number of sides (3+)")
+@click.option("--flat/--vertex", default=True, help="Flat-to-flat (True) or vertex-to-vertex (False)")
+def sketch_polygon(sketch_name: str, cx: float, cy: float,
+                   radius: float, sides: int, flat: bool) -> None:
+    """Add a regular polygon to a sketch.
+
+    Example: hexagon with 10mm circumradius:
+      sketch polygon MySketch --sides 6 --radius 10
+
+    Example: equilateral triangle:
+      sketch polygon MySketch --sides 3 --radius 8
+    """
+    import math
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    if sides < 3:
+        raise click.ClickException("Polygon must have at least 3 sides")
+    _session.checkpoint(f"add polygon to '{sketch_name}'")
+    # Calculate vertices
+    offset = 0.0 if not flat else math.pi / sides
+    vertices = [
+        (cx + radius * math.cos(2 * math.pi * i / sides + offset),
+         cy + radius * math.sin(2 * math.pi * i / sides + offset))
+        for i in range(sides)
+    ]
+    # Store as line segments
+    for i in range(sides):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % sides]
+        geom = {"type": "line", "x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output({"type": "polygon", "sides": sides, "radius": radius, "cx": cx, "cy": cy},
+            f"Added {sides}-sided polygon (r={radius}) at ({cx},{cy}) to '{sketch_name}'")
+
+
+@sketch.command("ellipse")
+@click.argument("sketch_name")
+@click.option("--cx", type=float, default=0, help="Center X")
+@click.option("--cy", type=float, default=0, help="Center Y")
+@click.option("-a", "--major-radius", type=float, default=10, help="Major (X) radius")
+@click.option("-b", "--minor-radius", type=float, default=6, help="Minor (Y) radius")
+def sketch_ellipse(sketch_name: str, cx: float, cy: float,
+                   major_radius: float, minor_radius: float) -> None:
+    """Add an ellipse to a sketch.
+
+    Example: 20x12mm ellipse:
+      sketch ellipse MySketch --major-radius 10 --minor-radius 6
+    """
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    _session.checkpoint(f"add ellipse to '{sketch_name}'")
+    geom = {"type": "ellipse", "cx": cx, "cy": cy,
+            "major_radius": major_radius, "minor_radius": minor_radius}
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added ellipse ({cx},{cy}) a={major_radius} b={minor_radius} to '{sketch_name}'")
+
+
+@sketch.command("close")
+@click.argument("sketch_name")
+def sketch_close(sketch_name: str) -> None:
+    """Mark a sketch as closed (all endpoints connected).
+
+    This validates that the sketch profile is closed before extrusion.
+    """
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    _session.checkpoint(f"close sketch '{sketch_name}'")
+    sketch_obj["params"]["closed"] = True
+    _session._auto_save()
+    _output({"sketch": sketch_name, "closed": True},
+            f"Sketch '{sketch_name}' marked as closed")

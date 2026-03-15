@@ -390,6 +390,99 @@ def _object_to_script(obj: dict[str, Any]) -> str:
             f"import Mesh\n"
             f"Mesh.insert({filepath!r}, doc.Name)\n"
         )
+    elif obj_type == "Part::Mirror":
+        source = params.get("source")
+        nx = params.get("normal_x", 0)
+        ny = params.get("normal_y", 0)
+        nz = params.get("normal_z", 1)
+        return (
+            f"doc.recompute()\n"
+            f"_obj = doc.addObject('Part::Mirroring', {name!r})\n"
+            f"_obj.Source = doc.getObject({source!r})\n"
+            f"_obj.Normal = FreeCAD.Vector({nx}, {ny}, {nz})\n"
+            f"_obj.Base = FreeCAD.Vector(0, 0, 0)\n"
+        )
+    elif obj_type == "Part::Thickness":
+        source = params.get("source")
+        thickness = params.get("thickness", -1.0)
+        return (
+            f"doc.recompute()\n"
+            f"_base = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Thickness', {name!r})\n"
+            f"_obj.Shapes = [(_base, 'Face1')]\n"
+            f"_obj.Value = {thickness}\n"
+            f"_obj.Mode = 0\n"
+            f"_obj.Join = 0\n"
+        )
+    elif obj_type == "Part::Loft":
+        profiles = params.get("profiles", [])
+        solid = params.get("solid", True)
+        ruled = params.get("ruled", False)
+        closed = params.get("closed", False)
+        script = (
+            f"doc.recompute()\n"
+            f"_obj = doc.addObject('Part::Loft', {name!r})\n"
+            f"_obj.Sections = [{', '.join(f'doc.getObject({p!r})' for p in profiles)}]\n"
+            f"_obj.Solid = {solid}\n"
+            f"_obj.Ruled = {ruled}\n"
+            f"_obj.Closed = {closed}\n"
+        )
+        return script
+    elif obj_type == "Part::Array":
+        source = params.get("source")
+        array_type = params.get("array_type", "linear")
+        if array_type == "linear":
+            count_x = params.get("count_x", 2)
+            count_y = params.get("count_y", 1)
+            count_z = params.get("count_z", 1)
+            step_x = params.get("step_x", 10)
+            step_y = params.get("step_y", 10)
+            step_z = params.get("step_z", 0)
+            return (
+                f"import Draft\n"
+                f"doc.recompute()\n"
+                f"_src = doc.getObject({source!r})\n"
+                f"_arr = Draft.makeArray(_src,\n"
+                f"    FreeCAD.Vector({step_x}, 0, 0),\n"
+                f"    FreeCAD.Vector(0, {step_y}, 0),\n"
+                f"    {count_x}, {count_y})\n"
+                f"_arr.Label = {name!r}\n"
+            )
+        else:  # polar
+            count = params.get("count", 4)
+            angle = params.get("angle", 360)
+            cx = params.get("center_x", 0)
+            cy = params.get("center_y", 0)
+            cz = params.get("center_z", 0)
+            return (
+                f"import Draft\n"
+                f"doc.recompute()\n"
+                f"_src = doc.getObject({source!r})\n"
+                f"_arr = Draft.makeArray(_src,\n"
+                f"    FreeCAD.Vector({cx}, {cy}, {cz}),\n"
+                f"    {angle}, {count})\n"
+                f"_arr.Label = {name!r}\n"
+            )
+    elif obj_type == "Part::Import":
+        filepath = params.get("filepath", "")
+        fmt = params.get("format", "step")
+        if fmt in ("step", "stp"):
+            return (
+                f"import Import\n"
+                f"Import.insert({filepath!r}, doc.Name)\n"
+            )
+        elif fmt in ("iges", "igs"):
+            return (
+                f"import ImportGui\n"
+                f"ImportGui.insert({filepath!r}, doc.Name)\n"
+            )
+        elif fmt == "brep":
+            return (
+                f"_obj = doc.addObject('Part::Feature', {name!r})\n"
+                f"_obj.Shape = Part.Shape()\n"
+                f"_obj.Shape.read({filepath!r})\n"
+            )
+        return f"# Unsupported import format: {fmt}\n"
     else:
         return f"# Unknown object type: {obj_type}\n"
 
@@ -447,6 +540,16 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
             f"_obj.addConstraint(Sketcher.Constraint('Horizontal', _gi+2))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Vertical', _gi+3))\n"
         )
+    elif gtype == "ellipse":
+        cx, cy = geom.get("cx", 0), geom.get("cy", 0)
+        a = geom.get("major_radius", 10)
+        b = geom.get("minor_radius", 6)
+        return (
+            f"_obj.addGeometry(Part.Ellipse("
+            f"FreeCAD.Vector({cx+a},{cy},0), "
+            f"FreeCAD.Vector({cx},{cy+b},0), "
+            f"FreeCAD.Vector({cx},{cy},0)))\n"
+        )
     return f"# Unknown sketch geometry: {gtype}\n"
 
 
@@ -485,3 +588,40 @@ def _sketch_constraint_to_script(con: dict[str, Any]) -> str:
             return f"_obj.addConstraint(Sketcher.Constraint('Angle', {geom}, {val_rad}))\n"
 
     return f"# Unknown constraint: {ctype}\n"
+
+
+def _array_to_script(obj: dict) -> str:
+    """Generate FreeCAD Python code for Part::Array."""
+    params = obj.get("params", {})
+    name = obj.get("name", "Array")
+    source = params.get("source")
+    array_type = params.get("array_type", "linear")
+
+    if array_type == "linear":
+        count_x = params.get("count_x", 2)
+        count_y = params.get("count_y", 1)
+        count_z = params.get("count_z", 1)
+        step_x = params.get("step_x", 10)
+        step_y = params.get("step_y", 10)
+        step_z = params.get("step_z", 0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_arr = Draft.makeArray(_src, FreeCAD.Vector({step_x},{step_y},{step_z}), "
+            f"FreeCAD.Vector({step_x},{step_y},{step_z}), {count_x}, {count_y})\n"
+            f"_arr.Label = {name!r}\n"
+        )
+    elif array_type == "polar":
+        count = params.get("count", 4)
+        angle = params.get("angle", 360)
+        center_x = params.get("center_x", 0)
+        center_y = params.get("center_y", 0)
+        center_z = params.get("center_z", 0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_arr = Draft.makeArray(_src, FreeCAD.Vector({center_x},{center_y},{center_z}), "
+            f"{angle}, {count})\n"
+            f"_arr.Label = {name!r}\n"
+        )
+    return f"# Unknown array type: {array_type}\n"
