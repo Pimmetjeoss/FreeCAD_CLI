@@ -19,6 +19,7 @@ from cli_anything.freecad.core.project import (
     save_project,
     _build_project_script,
     _object_to_script,
+    _sketch_geometry_to_script,
 )
 from cli_anything.freecad.core.session import Session
 from cli_anything.freecad.core.export import list_formats, EXPORT_FORMATS
@@ -60,6 +61,7 @@ from cli_anything.freecad.freecad_cli import cli
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def tmp_dir():
     with tempfile.TemporaryDirectory(prefix="fc_test_") as d:
@@ -82,6 +84,7 @@ def session_with_project(tmp_dir):
 
 
 # ── project.py tests ────────────────────────────────────────────────
+
 
 class TestCreateProject:
     def test_create_project_defaults(self):
@@ -123,10 +126,14 @@ class TestCreateProject:
         assert info["objects"] == []
 
     def test_get_project_info_with_objects(self, sample_project):
-        sample_project["objects"].append({
-            "name": "Box", "type": "Part::Box", "label": "Box",
-            "params": {"length": 10, "width": 10, "height": 10},
-        })
+        sample_project["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "label": "Box",
+                "params": {"length": 10, "width": 10, "height": 10},
+            }
+        )
         info = get_project_info(sample_project)
         assert info["object_count"] == 1
         assert info["objects"][0]["name"] == "Box"
@@ -211,8 +218,12 @@ class TestBuildProjectScript:
             "params": {
                 "source": "Sketch",
                 "angle": 360,
-                "axis_x": 0, "axis_y": 0, "axis_z": 1,
-                "base_x": 0, "base_y": 0, "base_z": 0,
+                "axis_x": 0,
+                "axis_y": 0,
+                "axis_z": 1,
+                "base_x": 0,
+                "base_y": 0,
+                "base_z": 0,
             },
         }
         script = _object_to_script(obj)
@@ -229,8 +240,12 @@ class TestBuildProjectScript:
             "params": {
                 "source": "Profile",
                 "angle": 180,
-                "axis_x": 1, "axis_y": 0, "axis_z": 0,
-                "base_x": 10, "base_y": 0, "base_z": 0,
+                "axis_x": 1,
+                "axis_y": 0,
+                "axis_z": 0,
+                "base_x": 10,
+                "base_y": 0,
+                "base_z": 0,
             },
         }
         script = _object_to_script(obj)
@@ -243,7 +258,12 @@ class TestBuildProjectScript:
         obj = {
             "name": "Sweep1",
             "type": "Part::Sweep",
-            "params": {"profile": "Circle", "path": "Helix", "solid": True, "frenet": True},
+            "params": {
+                "profile": "Circle",
+                "path": "Helix",
+                "solid": True,
+                "frenet": True,
+            },
         }
         script = _object_to_script(obj)
         assert "Part::Sweep" in script
@@ -256,7 +276,12 @@ class TestBuildProjectScript:
         obj = {
             "name": "ShellSweep",
             "type": "Part::Sweep",
-            "params": {"profile": "Rect", "path": "Spline", "solid": False, "frenet": False},
+            "params": {
+                "profile": "Rect",
+                "path": "Spline",
+                "solid": False,
+                "frenet": False,
+            },
         }
         script = _object_to_script(obj)
         assert ".Solid = False" in script
@@ -269,6 +294,7 @@ class TestBuildProjectScript:
 
 
 # ── session.py tests ─────────────────────────────────────────────────
+
 
 class TestSession:
     def test_new_session(self):
@@ -298,7 +324,11 @@ class TestSession:
         assert os.path.exists(path)
 
     def test_add_object(self, session_with_project):
-        obj = {"name": "B", "type": "Part::Box", "params": {"length": 5, "width": 5, "height": 5}}
+        obj = {
+            "name": "B",
+            "type": "Part::Box",
+            "params": {"length": 5, "width": 5, "height": 5},
+        }
         session_with_project.add_object(obj, "add box")
         assert len(session_with_project.project["objects"]) == 1
         # After auto-save, modified is False (changes persisted)
@@ -333,8 +363,12 @@ class TestSession:
         assert len(session_with_project.project["objects"]) == 1
 
     def test_history(self, session_with_project):
-        session_with_project.add_object({"name": "A", "type": "Part::Box", "params": {}}, "add A")
-        session_with_project.add_object({"name": "B", "type": "Part::Cylinder", "params": {}}, "add B")
+        session_with_project.add_object(
+            {"name": "A", "type": "Part::Box", "params": {}}, "add A"
+        )
+        session_with_project.add_object(
+            {"name": "B", "type": "Part::Cylinder", "params": {}}, "add B"
+        )
         history = session_with_project.history()
         assert len(history) == 2
         assert history[0] == "add A"
@@ -347,13 +381,17 @@ class TestSession:
         assert isinstance(status["undo_available"], int)
 
     def test_list_objects(self, session_with_project):
-        session_with_project.add_object({"name": "X", "type": "Part::Box", "params": {}}, "add")
+        session_with_project.add_object(
+            {"name": "X", "type": "Part::Box", "params": {}}, "add"
+        )
         objects = session_with_project.list_objects()
         assert len(objects) == 1
         assert objects[0]["name"] == "X"
 
     def test_get_object(self, session_with_project):
-        session_with_project.add_object({"name": "Y", "type": "Part::Sphere", "params": {}}, "add")
+        session_with_project.add_object(
+            {"name": "Y", "type": "Part::Sphere", "params": {}}, "add"
+        )
         obj = session_with_project.get_object("Y")
         assert obj is not None
         assert obj["type"] == "Part::Sphere"
@@ -361,6 +399,7 @@ class TestSession:
 
 
 # ── export.py tests ──────────────────────────────────────────────────
+
 
 class TestExport:
     def test_list_formats(self):
@@ -373,8 +412,15 @@ class TestExport:
 
     def test_export_no_overwrite(self, tmp_dir):
         from cli_anything.freecad.core.export import export
+
         proj = create_project(name="Test")
-        proj["objects"].append({"name": "Box", "type": "Part::Box", "params": {"length": 10, "width": 10, "height": 10}})
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 10, "width": 10, "height": 10},
+            }
+        )
         # Create a file to block overwrite
         path = os.path.join(tmp_dir, "existing.step")
         with open(path, "w") as f:
@@ -400,10 +446,13 @@ class TestExport:
 
 # ── techdraw.py tests ──────────────────────────────────────────────
 
+
 class TestTechDraw:
     def test_create_drawing(self):
         proj = create_project(name="TD")
-        page = create_drawing(proj, page_name="Sheet1", template="A3_Landscape", scale=2.0)
+        page = create_drawing(
+            proj, page_name="Sheet1", template="A3_Landscape", scale=2.0
+        )
         assert page["name"] == "Sheet1"
         assert page["type"] == "TechDraw::DrawPage"
         assert page["params"]["template"] == "A3_Landscape"
@@ -422,7 +471,9 @@ class TestTechDraw:
     def test_add_view(self):
         proj = create_project()
         page = create_drawing(proj)
-        view = add_view(page, "Box", view_name="FrontView", direction="front", x=120, y=80)
+        view = add_view(
+            page, "Box", view_name="FrontView", direction="front", x=120, y=80
+        )
         assert view["name"] == "FrontView"
         assert view["type"] == "TechDraw::DrawViewPart"
         assert view["source"] == "Box"
@@ -443,8 +494,9 @@ class TestTechDraw:
 
     def test_add_projection_group(self):
         page = create_drawing(create_project())
-        pg = add_projection_group(page, "Box", group_name="PG1",
-                                  projections=["Front", "Top", "Right", "Left"])
+        pg = add_projection_group(
+            page, "Box", group_name="PG1", projections=["Front", "Top", "Right", "Left"]
+        )
         assert pg["name"] == "PG1"
         assert pg["type"] == "TechDraw::DrawProjGroup"
         assert pg["source"] == "Box"
@@ -458,9 +510,16 @@ class TestTechDraw:
 
     def test_add_section_view(self):
         page = create_drawing(create_project())
-        sv = add_section_view(page, "Box", "FrontView",
-                              section_name="SectionA", normal=(1, 0, 0),
-                              origin=(5, 0, 0), x=250, y=100)
+        sv = add_section_view(
+            page,
+            "Box",
+            "FrontView",
+            section_name="SectionA",
+            normal=(1, 0, 0),
+            origin=(5, 0, 0),
+            x=250,
+            y=100,
+        )
         assert sv["name"] == "SectionA"
         assert sv["type"] == "TechDraw::DrawViewSection"
         assert sv["source"] == "Box"
@@ -470,9 +529,16 @@ class TestTechDraw:
 
     def test_add_dimension(self):
         page = create_drawing(create_project())
-        dim = add_dimension(page, "FrontView", dim_type="Distance",
-                            edge_ref="Edge1", dim_name="Length1",
-                            x=80, y=40, format_spec="%.1f")
+        dim = add_dimension(
+            page,
+            "FrontView",
+            dim_type="Distance",
+            edge_ref="Edge1",
+            dim_name="Length1",
+            x=80,
+            y=40,
+            format_spec="%.1f",
+        )
         assert dim["name"] == "Length1"
         assert dim["type"] == "TechDraw::DrawViewDimension"
         assert dim["view"] == "FrontView"
@@ -488,8 +554,9 @@ class TestTechDraw:
 
     def test_add_annotation(self):
         page = create_drawing(create_project())
-        anno = add_annotation(page, ["Line 1", "Line 2"], anno_name="Note1",
-                              x=30, y=250, font_size=4.0)
+        anno = add_annotation(
+            page, ["Line 1", "Line 2"], anno_name="Note1", x=30, y=250, font_size=4.0
+        )
         assert anno["name"] == "Note1"
         assert anno["type"] == "TechDraw::DrawViewAnnotation"
         assert anno["text"] == ["Line 1", "Line 2"]
@@ -509,10 +576,13 @@ class TestTechDraw:
 
     def test_build_techdraw_script_basic(self):
         proj = create_project(name="TDTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="Sheet1")
         add_view(page, "Box", view_name="FrontView", direction="front")
         add_dimension(page, "FrontView", dim_type="Distance", edge_ref="Edge0")
@@ -529,10 +599,13 @@ class TestTechDraw:
 
     def test_build_techdraw_script_projection(self):
         proj = create_project(name="ProjTest")
-        proj["objects"].append({
-            "name": "Cyl", "type": "Part::Cylinder",
-            "params": {"radius": 5, "height": 20, "angle": 360},
-        })
+        proj["objects"].append(
+            {
+                "name": "Cyl",
+                "type": "Part::Cylinder",
+                "params": {"radius": 5, "height": 20, "angle": 360},
+            }
+        )
         page = create_drawing(proj, page_name="P1")
         add_projection_group(page, "Cyl", projections=["Front", "Top"])
         proj["objects"].append(page)
@@ -543,10 +616,13 @@ class TestTechDraw:
 
     def test_build_techdraw_script_section(self):
         proj = create_project(name="SecTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 30, "width": 30, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 30, "width": 30, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="S1")
         add_view(page, "Box", view_name="V1")
         add_section_view(page, "Box", "V1", section_name="Sec1")
@@ -570,7 +646,9 @@ class TestTechDrawCLI:
         # Add a box first
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-l", "20"])
         # Create a drawing page
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-t", "A3_Landscape"])
+        result = runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-t", "A3_Landscape"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawPage"
@@ -581,8 +659,23 @@ class TestTechDrawCLI:
         path = os.path.join(tmp_dir, "td_view.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "MyBox"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "Page"])
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "Page", "MyBox", "-d", "top"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "Page"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "view",
+                "Page",
+                "MyBox",
+                "-d",
+                "top",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewPart"
@@ -593,10 +686,29 @@ class TestTechDrawCLI:
         path = os.path.join(tmp_dir, "td_dim.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B1", "-n", "V1"])
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "dimension",
-                                     "P1", "V1", "-t", "Distance", "-e", "Edge0"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B1", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Distance",
+                "-e",
+                "Edge0",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewDimension"
@@ -606,9 +718,22 @@ class TestTechDrawCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "td_anno.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "annotate",
-                                     "P1", "Material:", "Steel"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "annotate",
+                "P1",
+                "Material:",
+                "Steel",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewAnnotation"
@@ -619,10 +744,18 @@ class TestTechDrawCLI:
         path = os.path.join(tmp_dir, "td_list.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "annotate", "P1", "Note"])
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "list", "P1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "annotate", "P1", "Note"]
+        )
+        result = runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "list", "P1"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["page"] == "P1"
@@ -642,19 +775,23 @@ class TestTechDrawCLI:
 
 # ── freecad_backend.py tests ────────────────────────────────────────
 
+
 class TestBackend:
     def test_find_freecadcmd(self):
         from cli_anything.freecad.utils.freecad_backend import find_freecadcmd
+
         path = find_freecadcmd()
         assert os.path.exists(path)
 
     def test_get_version(self):
         from cli_anything.freecad.utils.freecad_backend import get_version
+
         version = get_version()
         assert "FreeCAD" in version or "freecad" in version.lower()
 
     def test_run_script_basic(self):
         from cli_anything.freecad.utils.freecad_backend import run_script
+
         result = run_script(
             "import FreeCAD\n"
             "_cli_result['version'] = FreeCAD.Version()[0] + '.' + FreeCAD.Version()[1]\n"
@@ -664,6 +801,7 @@ class TestBackend:
 
 
 # ── CLI tests (Click test runner) ───────────────────────────────────
+
 
 class TestCLI:
     def test_help(self):
@@ -682,7 +820,9 @@ class TestCLI:
     def test_project_new_json(self, tmp_dir):
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cli_test.json")
-        result = runner.invoke(cli, ["--json", "project", "new", "-n", "CLITest", "-o", path])
+        result = runner.invoke(
+            cli, ["--json", "project", "new", "-n", "CLITest", "-o", path]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["name"] == "CLITest"
@@ -692,7 +832,9 @@ class TestCLI:
         path = os.path.join(tmp_dir, "box_test.json")
         # Create project first
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, ["--json", "--project", path, "part", "box", "-l", "30"])
+        result = runner.invoke(
+            cli, ["--json", "--project", path, "part", "box", "-l", "30"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "Part::Box"
@@ -703,11 +845,24 @@ class TestCLI:
         path = os.path.join(tmp_dir, "revolve_test.json")
         # Create project + sketch source
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "Profile"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "revolve", "Profile",
-            "-a", "360", "--axis-z", "1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "sketch", "new", "-n", "Profile"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "revolve",
+                "Profile",
+                "-a",
+                "360",
+                "--axis-z",
+                "1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "Part::Revolution"
@@ -719,10 +874,23 @@ class TestCLI:
         path = os.path.join(tmp_dir, "revolve_half.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "Prof"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "revolve", "Prof",
-            "-a", "180", "--axis-x", "1", "--base-x", "5",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "revolve",
+                "Prof",
+                "-a",
+                "180",
+                "--axis-x",
+                "1",
+                "--base-x",
+                "5",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["params"]["angle"] == 180
@@ -733,20 +901,39 @@ class TestCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "revolve_err.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "revolve", "NonExistent",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "revolve",
+                "NonExistent",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_part_sweep_json(self, tmp_dir):
         runner = CliRunner()
         path = os.path.join(tmp_dir, "sweep_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "Profile"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "sketch", "new", "-n", "Profile"]
+        )
         runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "Path"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "sweep", "Profile", "Path",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "sweep",
+                "Profile",
+                "Path",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "Part::Sweep"
@@ -758,9 +945,18 @@ class TestCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "sweep_err.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "sweep", "Missing", "Also",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "sweep",
+                "Missing",
+                "Also",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_export_formats_json(self):
@@ -773,6 +969,7 @@ class TestCLI:
 
 
 # ── Placement tests ─────────────────────────────────────────────────
+
 
 class TestPlacement:
     """Tests for placement support on all primitives."""
@@ -792,7 +989,12 @@ class TestPlacement:
         obj = {
             "name": "PlacedBox",
             "type": "Part::Box",
-            "params": {"length": 50, "width": 30, "height": 20, "placement": {"x": 100, "y": 0, "z": 50}},
+            "params": {
+                "length": 50,
+                "width": 30,
+                "height": 20,
+                "placement": {"x": 100, "y": 0, "z": 50},
+            },
         }
         script = _object_to_script(obj)
         assert "Part::Box" in script
@@ -804,7 +1006,12 @@ class TestPlacement:
         obj = {
             "name": "PlacedCyl",
             "type": "Part::Cylinder",
-            "params": {"radius": 10, "height": 50, "angle": 360, "placement": {"x": 5, "y": 10, "z": 15}},
+            "params": {
+                "radius": 10,
+                "height": 50,
+                "angle": 360,
+                "placement": {"x": 5, "y": 10, "z": 15},
+            },
         }
         script = _object_to_script(obj)
         assert "Part::Cylinder" in script
@@ -826,7 +1033,12 @@ class TestPlacement:
         obj = {
             "name": "PlacedCone",
             "type": "Part::Cone",
-            "params": {"radius1": 10, "radius2": 5, "height": 30, "placement": {"x": 20, "y": 20, "z": 0}},
+            "params": {
+                "radius1": 10,
+                "radius2": 5,
+                "height": 30,
+                "placement": {"x": 20, "y": 20, "z": 0},
+            },
         }
         script = _object_to_script(obj)
         assert "Part::Cone" in script
@@ -837,7 +1049,11 @@ class TestPlacement:
         obj = {
             "name": "PlacedTor",
             "type": "Part::Torus",
-            "params": {"radius1": 20, "radius2": 5, "placement": {"x": 0, "y": 0, "z": 100}},
+            "params": {
+                "radius1": 20,
+                "radius2": 5,
+                "placement": {"x": 0, "y": 0, "z": 100},
+            },
         }
         script = _object_to_script(obj)
         assert "Part::Torus" in script
@@ -861,11 +1077,28 @@ class TestPlacementCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "place_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "box",
-            "-l", "100", "-w", "50", "-H", "30",
-            "--px", "10", "--py", "20", "--pz", "30",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "box",
+                "-l",
+                "100",
+                "-w",
+                "50",
+                "-H",
+                "30",
+                "--px",
+                "10",
+                "--py",
+                "20",
+                "--pz",
+                "30",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["params"]["placement"] == {"x": 10.0, "y": 20.0, "z": 30.0}
@@ -874,10 +1107,24 @@ class TestPlacementCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cyl_place.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "cylinder",
-            "-r", "10", "-H", "50", "--px", "5", "--pz", "100",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "cylinder",
+                "-r",
+                "10",
+                "-H",
+                "50",
+                "--px",
+                "5",
+                "--pz",
+                "100",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["params"]["placement"]["x"] == 5.0
@@ -887,10 +1134,20 @@ class TestPlacementCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "sph_place.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "sphere",
-            "-r", "25", "--py", "50",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "sphere",
+                "-r",
+                "25",
+                "--py",
+                "50",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["params"]["placement"]["y"] == 50.0
@@ -899,9 +1156,18 @@ class TestPlacementCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "zero_place.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "box", "-l", "10",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "box",
+                "-l",
+                "10",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "placement" not in data["params"]
@@ -915,10 +1181,23 @@ class TestPartMove:
         path = os.path.join(tmp_dir, "move_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Target"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "part", "move", "Target",
-            "--px", "100", "--py", "200", "--pz", "300",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "move",
+                "Target",
+                "--px",
+                "100",
+                "--py",
+                "200",
+                "--pz",
+                "300",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["params"]["placement"] == {"x": 100.0, "y": 200.0, "z": 300.0}
@@ -927,10 +1206,22 @@ class TestPartMove:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "move_err.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        result = runner.invoke(cli, [
-            "--project", path, "part", "move", "NoSuch",
-            "--px", "0", "--py", "0", "--pz", "0",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--project",
+                path,
+                "part",
+                "move",
+                "NoSuch",
+                "--px",
+                "0",
+                "--py",
+                "0",
+                "--pz",
+                "0",
+            ],
+        )
         assert result.exit_code != 0
         assert "not found" in result.output
 
@@ -939,10 +1230,23 @@ class TestPartMove:
         path = os.path.join(tmp_dir, "move_persist.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "MovMe"])
-        runner.invoke(cli, [
-            "--json", "--project", path, "part", "move", "MovMe",
-            "--px", "50", "--py", "0", "--pz", "75",
-        ])
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "move",
+                "MovMe",
+                "--px",
+                "50",
+                "--py",
+                "0",
+                "--pz",
+                "75",
+            ],
+        )
         # Reload and verify
         with open(path) as f:
             proj = json.load(f)
@@ -953,28 +1257,43 @@ class TestPartMove:
 
 # ── 2D projection tests ─────────────────────────────────────────────
 
+
 class TestProjectObject2D:
     """Tests for _project_object_2d — 2D projection of 3D objects."""
 
     def test_box_front_elevation(self):
-        obj = {"type": "Part::Box", "params": {"length": 904, "width": 504, "height": 1800}}
+        obj = {
+            "type": "Part::Box",
+            "params": {"length": 904, "width": 504, "height": 1800},
+        }
         result = _project_object_2d(obj, (0, -1, 0))
         assert result == (0, 0, 904, 1800)
 
     def test_box_side_elevation(self):
-        obj = {"type": "Part::Box", "params": {"length": 904, "width": 504, "height": 1800}}
+        obj = {
+            "type": "Part::Box",
+            "params": {"length": 904, "width": 504, "height": 1800},
+        }
         result = _project_object_2d(obj, (1, 0, 0))
         assert result == (0, 0, 504, 1800)
 
     def test_box_plan_view(self):
-        obj = {"type": "Part::Box", "params": {"length": 904, "width": 504, "height": 1800}}
+        obj = {
+            "type": "Part::Box",
+            "params": {"length": 904, "width": 504, "height": 1800},
+        }
         result = _project_object_2d(obj, (0, 0, 1))
         assert result == (0, 0, 904, 504)
 
     def test_box_with_placement(self):
         obj = {
             "type": "Part::Box",
-            "params": {"length": 100, "width": 50, "height": 200, "placement": {"x": 10, "y": 20, "z": 30}},
+            "params": {
+                "length": 100,
+                "width": 50,
+                "height": 200,
+                "placement": {"x": 10, "y": 20, "z": 30},
+            },
         }
         result = _project_object_2d(obj, (0, -1, 0))
         assert result == (10, 30, 100, 200)
@@ -992,7 +1311,11 @@ class TestProjectObject2D:
     def test_cylinder_with_placement(self):
         obj = {
             "type": "Part::Cylinder",
-            "params": {"radius": 10, "height": 50, "placement": {"x": 5, "y": 0, "z": 100}},
+            "params": {
+                "radius": 10,
+                "height": 50,
+                "placement": {"x": 5, "y": 0, "z": 100},
+            },
         }
         result = _project_object_2d(obj, (0, -1, 0))
         assert result == (5, 100, 20, 50)
@@ -1003,7 +1326,10 @@ class TestProjectObject2D:
         assert result == (0, 0, 60, 60)
 
     def test_cone_front_elevation(self):
-        obj = {"type": "Part::Cone", "params": {"radius1": 20, "radius2": 5, "height": 40}}
+        obj = {
+            "type": "Part::Cone",
+            "params": {"radius1": 20, "radius2": 5, "height": 40},
+        }
         result = _project_object_2d(obj, (0, -1, 0))
         assert result == (0, 0, 40, 40)  # max(r1,r2)*2 width
 
@@ -1015,32 +1341,59 @@ class TestProjectObject2D:
 
 # ── SVG export tests ─────────────────────────────────────────────────
 
+
 class TestExportDrawingSVG:
     """Tests for the direct SVG export (no FreeCAD required)."""
 
     def _make_project_with_drawing(self):
         """Helper: project with box + cylinder + TechDraw page."""
         proj = create_project(name="SVGTest")
-        proj["objects"].append({
-            "name": "MainBox",
-            "type": "Part::Box",
-            "label": "MainBox",
-            "params": {"length": 200, "width": 100, "height": 300},
-        })
-        proj["objects"].append({
-            "name": "Hole",
-            "type": "Part::Cylinder",
-            "label": "Hole",
-            "params": {"radius": 15, "height": 110, "placement": {"x": 100, "y": 50, "z": 0}},
-        })
+        proj["objects"].append(
+            {
+                "name": "MainBox",
+                "type": "Part::Box",
+                "label": "MainBox",
+                "params": {"length": 200, "width": 100, "height": 300},
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "Hole",
+                "type": "Part::Cylinder",
+                "label": "Hole",
+                "params": {
+                    "radius": 15,
+                    "height": 110,
+                    "placement": {"x": 100, "y": 50, "z": 0},
+                },
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A3_Landscape", scale=0.5)
         proj["objects"].append(page)  # Must add page to project objects
         add_view(page, "MainBox", "BoxFront", direction="front-elevation", x=100, y=150)
         add_view(page, "Hole", "HoleFront", direction="front-elevation", x=100, y=150)
         add_view(page, "MainBox", "BoxSide", direction="side-elevation", x=300, y=150)
-        add_dimension(page, "BoxFront", dim_type="DistanceX", edge_ref="Edge0", dim_name="W200", x=100, y=20)
-        add_dimension(page, "BoxFront", dim_type="DistanceY", edge_ref="Edge1", dim_name="H300", x=20, y=150)
-        add_annotation(page, ["Test Drawing", "Scale: 1:2"], anno_name="Title", x=300, y=270)
+        add_dimension(
+            page,
+            "BoxFront",
+            dim_type="DistanceX",
+            edge_ref="Edge0",
+            dim_name="W200",
+            x=100,
+            y=20,
+        )
+        add_dimension(
+            page,
+            "BoxFront",
+            dim_type="DistanceY",
+            edge_ref="Edge1",
+            dim_name="H300",
+            x=20,
+            y=150,
+        )
+        add_annotation(
+            page, ["Test Drawing", "Scale: 1:2"], anno_name="Title", x=300, y=270
+        )
         return proj
 
     def test_svg_export_creates_file(self, tmp_dir):
@@ -1096,6 +1449,7 @@ class TestExportDrawingSVG:
 
 # ── View direction alias tests ───────────────────────────────────────
 
+
 class TestViewDirectionAliases:
     """Tests for engineering-convention view direction aliases."""
 
@@ -1119,11 +1473,17 @@ class TestViewDirectionAliases:
 
 # ── Title Block tests ───────────────────────────────────────────────
 
+
 class TestTitleBlock:
     def test_set_title_block(self):
         page = create_drawing(create_project())
-        fields = {"title": "Dressoir", "author": "Pim", "date": "2026-03-13",
-                   "material": "Eiken", "scale": "1:10"}
+        fields = {
+            "title": "Dressoir",
+            "author": "Pim",
+            "date": "2026-03-13",
+            "material": "Eiken",
+            "scale": "1:10",
+        }
         tb = set_title_block(page, fields)
         assert tb["type"] == "TitleBlock"
         assert tb["title"] == "Dressoir"
@@ -1145,10 +1505,13 @@ class TestTitleBlock:
 
     def test_build_techdraw_script_title_block(self):
         proj = create_project(name="TBTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="P1")
         set_title_block(page, {"title": "Bouwtekening", "author": "Claude"})
         proj["objects"].append(page)
@@ -1159,12 +1522,22 @@ class TestTitleBlock:
 
 # ── Detail View tests ───────────────────────────────────────────────
 
+
 class TestDetailView:
     def test_add_detail_view(self):
         page = create_drawing(create_project())
-        detail = add_detail_view(page, "Box", "FrontView",
-                                  detail_name="DetailA", anchor_x=10, anchor_y=5,
-                                  radius=15, scale=3.0, x=300, y=60)
+        detail = add_detail_view(
+            page,
+            "Box",
+            "FrontView",
+            detail_name="DetailA",
+            anchor_x=10,
+            anchor_y=5,
+            radius=15,
+            scale=3.0,
+            x=300,
+            y=60,
+        )
         assert detail["name"] == "DetailA"
         assert detail["type"] == "TechDraw::DrawViewDetail"
         assert detail["source"] == "Box"
@@ -1183,13 +1556,18 @@ class TestDetailView:
 
     def test_build_techdraw_script_detail(self):
         proj = create_project(name="DetTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="P1")
         add_view(page, "Box", view_name="V1")
-        add_detail_view(page, "Box", "V1", detail_name="DetailB", anchor_x=5, anchor_y=3)
+        add_detail_view(
+            page, "Box", "V1", detail_name="DetailB", anchor_x=5, anchor_y=3
+        )
         proj["objects"].append(page)
         script = _build_techdraw_script(proj, "P1")
         assert "TechDraw::DrawViewDetail" in script
@@ -1200,12 +1578,19 @@ class TestDetailView:
 
 # ── Centerline tests ────────────────────────────────────────────────
 
+
 class TestCenterline:
     def test_add_centerline(self):
         page = create_drawing(create_project())
-        cl = add_centerline(page, "FrontView", cl_name="CL1",
-                            orientation="vertical", position=50,
-                            extent_low=-100, extent_high=100)
+        cl = add_centerline(
+            page,
+            "FrontView",
+            cl_name="CL1",
+            orientation="vertical",
+            position=50,
+            extent_low=-100,
+            extent_high=100,
+        )
         assert cl["name"] == "CL1"
         assert cl["type"] == "TechDraw::CenterLine"
         assert cl["view"] == "FrontView"
@@ -1228,12 +1613,20 @@ class TestCenterline:
 
 # ── Hatch tests ─────────────────────────────────────────────────────
 
+
 class TestHatch:
     def test_add_hatch(self):
         page = create_drawing(create_project())
-        h = add_hatch(page, "Section1", face_ref="Face0",
-                      hatch_name="H1", pattern="ansi31",
-                      scale=1.5, rotation=45, color="#FF0000")
+        h = add_hatch(
+            page,
+            "Section1",
+            face_ref="Face0",
+            hatch_name="H1",
+            pattern="ansi31",
+            scale=1.5,
+            rotation=45,
+            color="#FF0000",
+        )
         assert h["name"] == "H1"
         assert h["type"] == "TechDraw::DrawHatch"
         assert h["view"] == "Section1"
@@ -1255,12 +1648,21 @@ class TestHatch:
 
 # ── Leader Line tests ───────────────────────────────────────────────
 
+
 class TestLeaderLine:
     def test_add_leader_line(self):
         page = create_drawing(create_project())
-        ld = add_leader_line(page, "V1", leader_name="LD1",
-                             start_x=10, start_y=20, end_x=60, end_y=70,
-                             text="Detail A", arrow_style="filled")
+        ld = add_leader_line(
+            page,
+            "V1",
+            leader_name="LD1",
+            start_x=10,
+            start_y=20,
+            end_x=60,
+            end_y=70,
+            text="Detail A",
+            arrow_style="filled",
+        )
         assert ld["name"] == "LD1"
         assert ld["type"] == "TechDraw::DrawLeaderLine"
         assert ld["view"] == "V1"
@@ -1279,12 +1681,21 @@ class TestLeaderLine:
 
 # ── Balloon tests ───────────────────────────────────────────────────
 
+
 class TestBalloon:
     def test_add_balloon(self):
         page = create_drawing(create_project())
-        bl = add_balloon(page, "V1", balloon_name="BL1",
-                         origin_x=10, origin_y=20, text="3",
-                         shape="circular", x=80, y=30)
+        bl = add_balloon(
+            page,
+            "V1",
+            balloon_name="BL1",
+            origin_x=10,
+            origin_y=20,
+            text="3",
+            shape="circular",
+            x=80,
+            y=30,
+        )
         assert bl["name"] == "BL1"
         assert bl["type"] == "TechDraw::DrawViewBalloon"
         assert bl["view"] == "V1"
@@ -1309,6 +1720,7 @@ class TestBalloon:
 
 
 # ── BOM tests ───────────────────────────────────────────────────────
+
 
 class TestBOM:
     def test_add_bom(self):
@@ -1337,19 +1749,34 @@ class TestBOM:
 
 # ── CLI tests for new TechDraw commands ─────────────────────────────
 
+
 class TestTitleBlockCLI:
     def test_title_block_json(self, tmp_dir):
         runner = CliRunner()
         path = os.path.join(tmp_dir, "tb_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "title-block", "P1",
-            "--title", "Bouwtekening Dressoir",
-            "--author", "Pim",
-            "--material", "Eiken massief",
-            "--scale", "1:10",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "title-block",
+                "P1",
+                "--title",
+                "Bouwtekening Dressoir",
+                "--author",
+                "Pim",
+                "--material",
+                "Eiken massief",
+                "--scale",
+                "1:10",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TitleBlock"
@@ -1360,8 +1787,12 @@ class TestTitleBlockCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "tb_err.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, ["--project", path, "techdraw", "title-block", "P1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli, ["--project", path, "techdraw", "title-block", "P1"]
+        )
         assert result.exit_code != 0
         assert "at least one" in result.output.lower()
 
@@ -1372,12 +1803,34 @@ class TestDetailViewCLI:
         path = os.path.join(tmp_dir, "det_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "detail",
-            "P1", "Box", "V1", "--ax", "10", "--ay", "5", "-r", "15", "-s", "3.0",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "detail",
+                "P1",
+                "Box",
+                "V1",
+                "--ax",
+                "10",
+                "--ay",
+                "5",
+                "-r",
+                "15",
+                "-s",
+                "3.0",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewDetail"
@@ -1391,12 +1844,29 @@ class TestCenterlineCLI:
         path = os.path.join(tmp_dir, "cl_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "centerline",
-            "P1", "V1", "-o", "vertical", "-p", "50",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "centerline",
+                "P1",
+                "V1",
+                "-o",
+                "vertical",
+                "-p",
+                "50",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::CenterLine"
@@ -1410,12 +1880,29 @@ class TestHatchCLI:
         path = os.path.join(tmp_dir, "h_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "hatch",
-            "P1", "V1", "-f", "Face0", "-p", "ansi32",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "hatch",
+                "P1",
+                "V1",
+                "-f",
+                "Face0",
+                "-p",
+                "ansi32",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawHatch"
@@ -1428,13 +1915,35 @@ class TestLeaderCLI:
         path = os.path.join(tmp_dir, "ld_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "leader",
-            "P1", "V1", "--sx", "10", "--sy", "20", "--ex", "60", "--ey", "70",
-            "-t", "Zie detail A",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "leader",
+                "P1",
+                "V1",
+                "--sx",
+                "10",
+                "--sy",
+                "20",
+                "--ex",
+                "60",
+                "--ey",
+                "70",
+                "-t",
+                "Zie detail A",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawLeaderLine"
@@ -1447,12 +1956,33 @@ class TestBalloonCLI:
         path = os.path.join(tmp_dir, "bl_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "balloon",
-            "P1", "V1", "-t", "5", "-s", "circular", "-x", "80", "-y", "30",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "balloon",
+                "P1",
+                "V1",
+                "-t",
+                "5",
+                "-s",
+                "circular",
+                "-x",
+                "80",
+                "-y",
+                "30",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewBalloon"
@@ -1465,12 +1995,24 @@ class TestBOMCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "bom_test.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "bom", "P1",
-            "-i", "item=1,name=Zijpaneel,material=Eiken,quantity=2",
-            "-i", "item=2,name=Bovenpaneel,material=Eiken,quantity=1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "bom",
+                "P1",
+                "-i",
+                "item=1,name=Zijpaneel,material=Eiken,quantity=2",
+                "-i",
+                "item=2,name=Bovenpaneel,material=Eiken,quantity=1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "BOM"
@@ -1481,12 +2023,24 @@ class TestBOMCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "bom_cols.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "bom", "P1",
-            "--columns", "pos,omschrijving,stuks",
-            "-i", "pos=1,omschrijving=Plank,stuks=4",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "bom",
+                "P1",
+                "--columns",
+                "pos,omschrijving,stuks",
+                "-i",
+                "pos=1,omschrijving=Plank,stuks=4",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["columns"] == ["pos", "omschrijving", "stuks"]
@@ -1494,25 +2048,48 @@ class TestBOMCLI:
 
 # ── SVG export with new features tests ──────────────────────────────
 
+
 class TestExportSVGNewFeatures:
     def _make_project_with_all_features(self):
         proj = create_project(name="FullTest")
-        proj["objects"].append({
-            "name": "MainBox", "type": "Part::Box", "label": "MainBox",
-            "params": {"length": 200, "width": 100, "height": 300},
-        })
+        proj["objects"].append(
+            {
+                "name": "MainBox",
+                "type": "Part::Box",
+                "label": "MainBox",
+                "params": {"length": 200, "width": 100, "height": 300},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A3_Landscape", scale=0.5)
         proj["objects"].append(page)
         add_view(page, "MainBox", "BoxFront", direction="front-elevation", x=100, y=150)
-        set_title_block(page, {"title": "Test Drawing", "author": "Claude", "material": "Steel"})
-        add_centerline(page, "BoxFront", cl_name="CL1", orientation="vertical", position=0)
+        set_title_block(
+            page, {"title": "Test Drawing", "author": "Claude", "material": "Steel"}
+        )
+        add_centerline(
+            page, "BoxFront", cl_name="CL1", orientation="vertical", position=0
+        )
         add_hatch(page, "BoxFront", face_ref="Face0", hatch_name="H1")
-        add_leader_line(page, "BoxFront", leader_name="LD1", start_x=10, start_y=20,
-                        end_x=60, end_y=70, text="See detail")
+        add_leader_line(
+            page,
+            "BoxFront",
+            leader_name="LD1",
+            start_x=10,
+            start_y=20,
+            end_x=60,
+            end_y=70,
+            text="See detail",
+        )
         add_balloon(page, "BoxFront", balloon_name="BL1", text="1", x=80, y=30)
-        add_bom(page, [
-            {"item": "1", "name": "Box", "material": "Steel", "quantity": "1"},
-        ], bom_name="BOM1", x=300, y=250)
+        add_bom(
+            page,
+            [
+                {"item": "1", "name": "Box", "material": "Steel", "quantity": "1"},
+            ],
+            bom_name="BOM1",
+            x=300,
+            y=250,
+        )
         return proj
 
     def test_svg_has_title_block(self, tmp_dir):
@@ -1574,11 +2151,23 @@ class TestExportSVGNewFeatures:
         path = os.path.join(tmp_dir, "list_new.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "centerline", "P1", "V1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "balloon", "P1", "V1", "-t", "1"])
-        result = runner.invoke(cli, ["--json", "--project", path, "techdraw", "list", "P1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "centerline", "P1", "V1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "balloon", "P1", "V1", "-t", "1"],
+        )
+        result = runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "list", "P1"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["centerlines"]) == 1
@@ -1586,6 +2175,7 @@ class TestExportSVGNewFeatures:
 
 
 # ── Dimension types & format tests ───────────────────────────────────
+
 
 class TestDimensionTypes:
     """Tests for all dimension types: Distance, DistanceX, DistanceY, Radius, Diameter, Angle."""
@@ -1616,8 +2206,9 @@ class TestDimensionTypes:
 
     def test_add_dimension_angle(self):
         page = create_drawing(create_project())
-        dim = add_dimension(page, "V1", dim_type="Angle",
-                            edge_ref="Edge0", edge_ref2="Edge1")
+        dim = add_dimension(
+            page, "V1", dim_type="Angle", edge_ref="Edge0", edge_ref2="Edge1"
+        )
         assert dim["dim_type"] == "Angle"
         assert dim["references"] == ["Edge0", "Edge1"]
 
@@ -1635,8 +2226,9 @@ class TestDimensionTypes:
 
     def test_add_dimension_tolerance(self):
         page = create_drawing(create_project())
-        dim = add_dimension(page, "V1", dim_type="Distance",
-                            tolerance_upper=0.1, tolerance_lower=-0.05)
+        dim = add_dimension(
+            page, "V1", dim_type="Distance", tolerance_upper=0.1, tolerance_lower=-0.05
+        )
         assert dim["tolerance_upper"] == 0.1
         assert dim["tolerance_lower"] == -0.05
 
@@ -1665,10 +2257,13 @@ class TestDimensionScript:
 
     def _make_project_with_dims(self):
         proj = create_project(name="DimScript")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 50, "width": 30, "height": 20},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 50, "width": 30, "height": 20},
+            }
+        )
         page = create_drawing(proj, "Sheet1")
         add_view(page, "Box", "V1", direction="front")
         proj["objects"].append(page)
@@ -1711,8 +2306,9 @@ class TestDimensionScript:
 
     def test_script_tolerance_fields(self):
         proj, page = self._make_project_with_dims()
-        add_dimension(page, "V1", dim_type="Distance",
-                      tolerance_upper=0.1, tolerance_lower=-0.05)
+        add_dimension(
+            page, "V1", dim_type="Distance", tolerance_upper=0.1, tolerance_lower=-0.05
+        )
         script = _build_techdraw_script(proj, "Sheet1")
         assert "FormatSpecOverTolerance" in script
         assert "FormatSpecUnderTolerance" in script
@@ -1731,10 +2327,14 @@ class TestComputeDimensionValue:
         if params is None:
             params = {"length": 100, "width": 60, "height": 40}
         obj = {"name": "Obj", "type": obj_type, "params": params}
-        views = [{
-            "name": "V1", "type": "TechDraw::DrawViewPart",
-            "source": "Obj", "direction": (0, -1, 0),  # front elevation
-        }]
+        views = [
+            {
+                "name": "V1",
+                "type": "TechDraw::DrawViewPart",
+                "source": "Obj",
+                "direction": (0, -1, 0),  # front elevation
+            }
+        ]
         obj_map = {"Obj": obj}
         return views, obj_map
 
@@ -1750,25 +2350,25 @@ class TestComputeDimensionValue:
 
     def test_radius_cylinder(self):
         views, obj_map = self._make_views_and_objects(
-            "Part::Cylinder", {"radius": 15, "height": 50})
+            "Part::Cylinder", {"radius": 15, "height": 50}
+        )
         val = _compute_dimension_value("Radius", "V1", views, obj_map)
         assert val == 15
 
     def test_diameter_cylinder(self):
         views, obj_map = self._make_views_and_objects(
-            "Part::Cylinder", {"radius": 15, "height": 50})
+            "Part::Cylinder", {"radius": 15, "height": 50}
+        )
         val = _compute_dimension_value("Diameter", "V1", views, obj_map)
         assert val == 30
 
     def test_radius_sphere(self):
-        views, obj_map = self._make_views_and_objects(
-            "Part::Sphere", {"radius": 25})
+        views, obj_map = self._make_views_and_objects("Part::Sphere", {"radius": 25})
         val = _compute_dimension_value("Radius", "V1", views, obj_map)
         assert val == 25
 
     def test_diameter_sphere(self):
-        views, obj_map = self._make_views_and_objects(
-            "Part::Sphere", {"radius": 25})
+        views, obj_map = self._make_views_and_objects("Part::Sphere", {"radius": 25})
         val = _compute_dimension_value("Diameter", "V1", views, obj_map)
         assert val == 50
 
@@ -1779,8 +2379,10 @@ class TestComputeDimensionValue:
 
     def test_angle_cone(self):
         import math
+
         views, obj_map = self._make_views_and_objects(
-            "Part::Cone", {"radius1": 10, "radius2": 5, "height": 20})
+            "Part::Cone", {"radius1": 10, "radius2": 5, "height": 20}
+        )
         val = _compute_dimension_value("Angle", "V1", views, obj_map)
         expected = math.degrees(math.atan2(5, 20))
         assert abs(val - expected) < 0.01
@@ -1802,28 +2404,36 @@ class TestDimensionSVGExport:
 
     def _make_box_drawing_with_dim(self, dim_type, **kwargs):
         proj = create_project(name="DimSVG")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 80, "width": 50, "height": 30},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 80, "width": 50, "height": 30},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A4_Landscape", scale=1.0)
         proj["objects"].append(page)
         add_view(page, "Box", "V1", direction="front-elevation", x=150, y=100)
-        add_dimension(page, "V1", dim_type=dim_type, dim_name="TestDim",
-                      x=150, y=30, **kwargs)
+        add_dimension(
+            page, "V1", dim_type=dim_type, dim_name="TestDim", x=150, y=30, **kwargs
+        )
         return proj
 
     def _make_cylinder_drawing_with_dim(self, dim_type, **kwargs):
         proj = create_project(name="CylDimSVG")
-        proj["objects"].append({
-            "name": "Cyl", "type": "Part::Cylinder",
-            "params": {"radius": 12, "height": 40},
-        })
+        proj["objects"].append(
+            {
+                "name": "Cyl",
+                "type": "Part::Cylinder",
+                "params": {"radius": 12, "height": 40},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A4_Landscape", scale=1.0)
         proj["objects"].append(page)
         add_view(page, "Cyl", "V1", direction="front-elevation", x=150, y=100)
-        add_dimension(page, "V1", dim_type=dim_type, dim_name="TestDim",
-                      x=150, y=30, **kwargs)
+        add_dimension(
+            page, "V1", dim_type=dim_type, dim_name="TestDim", x=150, y=30, **kwargs
+        )
         return proj
 
     def test_svg_distance_x_value(self, tmp_dir):
@@ -1868,7 +2478,8 @@ class TestDimensionSVGExport:
 
     def test_svg_dimension_with_tolerance(self, tmp_dir):
         proj = self._make_box_drawing_with_dim(
-            "DistanceX", tolerance_upper=0.1, tolerance_lower=-0.05)
+            "DistanceX", tolerance_upper=0.1, tolerance_lower=-0.05
+        )
         out = os.path.join(tmp_dir, "tol.svg")
         export_drawing_svg(proj, "Sheet1", out)
         with open(out, encoding="utf-8") as f:
@@ -1892,13 +2503,32 @@ class TestDimensionCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cli_rad.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "part", "cylinder", "-n", "C1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "C1", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "dimension",
-            "P1", "V1", "-t", "Radius", "-e", "Edge0",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "part", "cylinder", "-n", "C1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "C1", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Radius",
+                "-e",
+                "Edge0",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["dim_type"] == "Radius"
@@ -1909,12 +2539,27 @@ class TestDimensionCLI:
         path = os.path.join(tmp_dir, "cli_dia.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "dimension",
-            "P1", "V1", "-t", "Diameter",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Diameter",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["dim_type"] == "Diameter"
@@ -1925,12 +2570,31 @@ class TestDimensionCLI:
         path = os.path.join(tmp_dir, "cli_angle.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "dimension",
-            "P1", "V1", "-t", "Angle", "-e", "Edge0", "-e2", "Edge1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Angle",
+                "-e",
+                "Edge0",
+                "-e2",
+                "Edge1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["dim_type"] == "Angle"
@@ -1941,12 +2605,31 @@ class TestDimensionCLI:
         path = os.path.join(tmp_dir, "cli_tol.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "dimension",
-            "P1", "V1", "-t", "Distance", "--tol-upper", "0.1", "--tol-lower", "-0.05",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Distance",
+                "--tol-upper",
+                "0.1",
+                "--tol-lower",
+                "-0.05",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["tolerance_upper"] == 0.1
@@ -1957,12 +2640,29 @@ class TestDimensionCLI:
         path = os.path.join(tmp_dir, "cli_suffix.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "dimension",
-            "P1", "V1", "-t", "Diameter", "--suffix", " THRU",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "dimension",
+                "P1",
+                "V1",
+                "-t",
+                "Diameter",
+                "--suffix",
+                " THRU",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["suffix"] == " THRU"
@@ -1974,19 +2674,37 @@ class TestDimensionCLI:
         path = os.path.join(tmp_dir, "cli_all6.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
         for dt in ["Distance", "DistanceX", "DistanceY", "Radius", "Diameter", "Angle"]:
-            result = runner.invoke(cli, [
-                "--json", "--project", path, "techdraw", "dimension",
-                "P1", "V1", "-t", dt, "-n", f"D_{dt}",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "--json",
+                    "--project",
+                    path,
+                    "techdraw",
+                    "dimension",
+                    "P1",
+                    "V1",
+                    "-t",
+                    dt,
+                    "-n",
+                    f"D_{dt}",
+                ],
+            )
             assert result.exit_code == 0, f"Failed for type {dt}: {result.output}"
             data = json.loads(result.output)
             assert data["dim_type"] == dt
 
 
 # ── Cosmetic Edge & Center Mark tests ────────────────────────────────
+
 
 class TestCosmeticEdge:
     """Tests for cosmetic edge (artificial line) functionality."""
@@ -2008,8 +2726,16 @@ class TestCosmeticEdge:
     def test_add_cosmetic_edge_custom(self):
         page = create_drawing(create_project())
         edge = add_cosmetic_edge(
-            page, "V1", x1=-20, y1=10, x2=20, y2=10,
-            edge_name="FoldLine", style="dashdot", color="#FF0000", weight=0.3,
+            page,
+            "V1",
+            x1=-20,
+            y1=10,
+            x2=20,
+            y2=10,
+            edge_name="FoldLine",
+            style="dashdot",
+            color="#FF0000",
+            weight=0.3,
         )
         assert edge["name"] == "FoldLine"
         assert edge["x1"] == -20
@@ -2064,8 +2790,13 @@ class TestCenterMark:
     def test_add_center_mark_custom(self):
         page = create_drawing(create_project())
         mark = add_center_mark(
-            page, "V1", cx=15, cy=-10, mark_name="HoleCenter",
-            size=8, color="#0000FF",
+            page,
+            "V1",
+            cx=15,
+            cy=-10,
+            mark_name="HoleCenter",
+            size=8,
+            color="#0000FF",
         )
         assert mark["name"] == "HoleCenter"
         assert mark["cx"] == 15
@@ -2089,10 +2820,13 @@ class TestCosmeticEdgeScript:
 
     def _make_project(self):
         proj = create_project(name="CEScript")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 50, "width": 30, "height": 20},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 50, "width": 30, "height": 20},
+            }
+        )
         page = create_drawing(proj, "Sheet1")
         add_view(page, "Box", "V1", direction="front")
         proj["objects"].append(page)
@@ -2118,10 +2852,13 @@ class TestCosmeticEdgeSVG:
 
     def _make_project_with_edges(self):
         proj = create_project(name="CESVG")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 80, "width": 50, "height": 30},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 80, "width": 50, "height": 30},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A4_Landscape", scale=1.0)
         proj["objects"].append(page)
         add_view(page, "Box", "V1", direction="front-elevation", x=150, y=100)
@@ -2158,8 +2895,9 @@ class TestCosmeticEdgeSVG:
         with open(out, encoding="utf-8") as f:
             svg = f.read()
         # Solid lines should NOT have stroke-dasharray on the cosmetic edge line
-        cosmetic_lines = [l for l in svg.split("\n")
-                          if 'stroke-width="0.2"' in l and "<line" in l]
+        cosmetic_lines = [
+            l for l in svg.split("\n") if 'stroke-width="0.2"' in l and "<line" in l
+        ]
         assert len(cosmetic_lines) >= 1
         for line in cosmetic_lines:
             assert "stroke-dasharray" not in line
@@ -2191,13 +2929,35 @@ class TestCosmeticEdgeCLI:
         path = os.path.join(tmp_dir, "cli_ce.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "cosmetic-edge",
-            "P1", "V1", "--x1", "-20", "--y1", "5", "--x2", "20", "--y2", "5",
-            "-s", "dashed",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "cosmetic-edge",
+                "P1",
+                "V1",
+                "--x1",
+                "-20",
+                "--y1",
+                "5",
+                "--x2",
+                "20",
+                "--y2",
+                "5",
+                "-s",
+                "dashed",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::CosmeticEdge"
@@ -2209,12 +2969,31 @@ class TestCosmeticEdgeCLI:
         path = os.path.join(tmp_dir, "cli_cm.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "center-mark",
-            "P1", "V1", "--cx", "10", "--cy", "-5", "--size", "8",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "center-mark",
+                "P1",
+                "V1",
+                "--cx",
+                "10",
+                "--cy",
+                "-5",
+                "--size",
+                "8",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::CenterMark"
@@ -2228,13 +3007,30 @@ class TestCosmeticEdgeCLI:
         path = os.path.join(tmp_dir, "cli_styles.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
         for style in ["solid", "dashed", "dashdot", "dotted", "phantom"]:
-            result = runner.invoke(cli, [
-                "--json", "--project", path, "techdraw", "cosmetic-edge",
-                "P1", "V1", "-s", style, "-n", f"E_{style}",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "--json",
+                    "--project",
+                    path,
+                    "techdraw",
+                    "cosmetic-edge",
+                    "P1",
+                    "V1",
+                    "-s",
+                    style,
+                    "-n",
+                    f"E_{style}",
+                ],
+            )
             assert result.exit_code == 0, f"Failed for style {style}: {result.output}"
 
     def test_cli_list_shows_cosmetic_edges(self, tmp_dir):
@@ -2242,17 +3038,48 @@ class TestCosmeticEdgeCLI:
         path = os.path.join(tmp_dir, "cli_list_ce.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "cosmetic-edge", "P1", "V1",
-        ])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "center-mark", "P1", "V1",
-        ])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "list", "P1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "cosmetic-edge",
+                "P1",
+                "V1",
+            ],
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "center-mark",
+                "P1",
+                "V1",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "list",
+                "P1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["cosmetic_edges"]) == 2
@@ -2262,6 +3089,7 @@ class TestCosmeticEdgeCLI:
 
 
 # ── DrawViewClip tests ───────────────────────────────────────────────
+
 
 class TestClipGroup:
     """Tests for clip group (view clipping/masking) functionality."""
@@ -2282,8 +3110,13 @@ class TestClipGroup:
     def test_add_clip_group_custom(self):
         page = create_drawing(create_project())
         clip = add_clip_group(
-            page, clip_name="DetailClip", x=200, y=150,
-            width=120, height=90, show_frame=False,
+            page,
+            clip_name="DetailClip",
+            x=200,
+            y=150,
+            width=120,
+            height=90,
+            show_frame=False,
         )
         assert clip["name"] == "DetailClip"
         assert clip["x"] == 200
@@ -2347,10 +3180,13 @@ class TestClipGroupScript:
 
     def _make_project(self):
         proj = create_project(name="ClipScript")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 50, "width": 30, "height": 20},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 50, "width": 30, "height": 20},
+            }
+        )
         page = create_drawing(proj, "Sheet1")
         add_view(page, "Box", "V1", direction="front")
         proj["objects"].append(page)
@@ -2390,15 +3226,25 @@ class TestClipGroupSVG:
 
     def _make_project_with_clip(self, show_frame=True):
         proj = create_project(name="ClipSVG")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 80, "width": 50, "height": 30},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 80, "width": 50, "height": 30},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A4_Landscape", scale=1.0)
         proj["objects"].append(page)
         add_view(page, "Box", "V1", direction="front-elevation", x=150, y=100)
-        add_clip_group(page, clip_name="C1", x=150, y=100,
-                       width=60, height=40, show_frame=show_frame)
+        add_clip_group(
+            page,
+            clip_name="C1",
+            x=150,
+            y=100,
+            width=60,
+            height=40,
+            show_frame=show_frame,
+        )
         add_view_to_clip(page, "C1", "V1")
         return proj
 
@@ -2441,10 +3287,13 @@ class TestClipGroupSVG:
     def test_svg_clip_without_views(self, tmp_dir):
         """Empty clip group should still produce a frame."""
         proj = create_project(name="EmptyClip")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 40, "width": 20, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 40, "width": 20, "height": 10},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A4_Landscape")
         proj["objects"].append(page)
         add_clip_group(page, clip_name="Empty", x=200, y=100, width=50, height=30)
@@ -2463,12 +3312,30 @@ class TestClipGroupCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cli_clip.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "clip",
-            "P1", "-n", "C1", "-x", "200", "-y", "150",
-            "-w", "100", "-H", "70",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "clip",
+                "P1",
+                "-n",
+                "C1",
+                "-x",
+                "200",
+                "-y",
+                "150",
+                "-w",
+                "100",
+                "-H",
+                "70",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DrawViewClip"
@@ -2480,12 +3347,29 @@ class TestClipGroupCLI:
         path = os.path.join(tmp_dir, "cli_clip_add.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "clip-add", "P1", "C1", "V1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "clip-add",
+                "P1",
+                "C1",
+                "V1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "V1" in data["views"]
@@ -2494,22 +3378,48 @@ class TestClipGroupCLI:
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cli_clip_fail.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "clip-add", "P1", "C1", "NoView",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "clip-add",
+                "P1",
+                "C1",
+                "NoView",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_cli_clip_no_frame(self, tmp_dir):
         runner = CliRunner()
         path = os.path.join(tmp_dir, "cli_clip_nf.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "clip",
-            "P1", "-n", "C1", "--no-frame",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "clip",
+                "P1",
+                "-n",
+                "C1",
+                "--no-frame",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["show_frame"] is False
@@ -2519,13 +3429,30 @@ class TestClipGroupCLI:
         path = os.path.join(tmp_dir, "cli_list_clip.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "B"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "clip-add", "P1", "C1", "V1"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "list", "P1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "B", "-n", "V1"],
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "clip", "P1", "-n", "C1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "clip-add", "P1", "C1", "V1"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "list",
+                "P1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["clips"]) == 1
@@ -2535,14 +3462,24 @@ class TestClipGroupCLI:
 
 # ── GD&T Constants tests ─────────────────────────────────────────────
 
+
 class TestGDTConstants:
     def test_gdt_symbols_complete(self):
         expected = [
-            "flatness", "straightness", "circularity", "cylindricity",
-            "perpendicularity", "parallelism", "angularity",
-            "position", "concentricity", "symmetry",
-            "circular_runout", "total_runout",
-            "profile_line", "profile_surface",
+            "flatness",
+            "straightness",
+            "circularity",
+            "cylindricity",
+            "perpendicularity",
+            "parallelism",
+            "angularity",
+            "position",
+            "concentricity",
+            "symmetry",
+            "circular_runout",
+            "total_runout",
+            "profile_line",
+            "profile_surface",
         ]
         for name in expected:
             assert name in GDT_SYMBOLS
@@ -2571,13 +3508,21 @@ class TestGDTConstants:
 
 # ── Geometric Tolerance tests ────────────────────────────────────────
 
+
 class TestGeometricTolerance:
     def test_add_position_tolerance(self):
         page = create_drawing(create_project())
         gdt = add_geometric_tolerance(
-            page, "V1", characteristic="position", tolerance=0.05,
-            gdt_name="GDT1", datum_refs=["A", "B"], material_condition="MMC",
-            diameter_zone=True, x=120, y=90,
+            page,
+            "V1",
+            characteristic="position",
+            tolerance=0.05,
+            gdt_name="GDT1",
+            datum_refs=["A", "B"],
+            material_condition="MMC",
+            diameter_zone=True,
+            x=120,
+            y=90,
         )
         assert gdt["name"] == "GDT1"
         assert gdt["type"] == "TechDraw::GeometricTolerance"
@@ -2596,7 +3541,10 @@ class TestGeometricTolerance:
     def test_add_flatness_tolerance(self):
         page = create_drawing(create_project())
         gdt = add_geometric_tolerance(
-            page, "V1", characteristic="flatness", tolerance=0.01,
+            page,
+            "V1",
+            characteristic="flatness",
+            tolerance=0.01,
         )
         assert gdt["characteristic"] == "flatness"
         assert gdt["symbol"] == "⏥"
@@ -2608,7 +3556,10 @@ class TestGeometricTolerance:
     def test_add_perpendicularity_tolerance(self):
         page = create_drawing(create_project())
         gdt = add_geometric_tolerance(
-            page, "V1", characteristic="perpendicularity", tolerance=0.1,
+            page,
+            "V1",
+            characteristic="perpendicularity",
+            tolerance=0.1,
             datum_refs=["A"],
         )
         assert gdt["characteristic"] == "perpendicularity"
@@ -2618,7 +3569,10 @@ class TestGeometricTolerance:
     def test_add_parallelism_tolerance(self):
         page = create_drawing(create_project())
         gdt = add_geometric_tolerance(
-            page, "V1", characteristic="parallelism", tolerance=0.02,
+            page,
+            "V1",
+            characteristic="parallelism",
+            tolerance=0.02,
             datum_refs=["A", "B", "C"],
         )
         assert gdt["datum_refs"] == ["A", "B", "C"]
@@ -2626,21 +3580,30 @@ class TestGeometricTolerance:
     def test_invalid_characteristic_raises(self):
         page = create_drawing(create_project())
         with pytest.raises(ValueError, match="Unknown GD&T characteristic"):
-            add_geometric_tolerance(page, "V1", characteristic="nonexistent", tolerance=0.1)
+            add_geometric_tolerance(
+                page, "V1", characteristic="nonexistent", tolerance=0.1
+            )
 
     def test_multiple_gdt_on_page(self):
         page = create_drawing(create_project())
-        add_geometric_tolerance(page, "V1", characteristic="flatness", tolerance=0.01, gdt_name="G1")
-        add_geometric_tolerance(page, "V1", characteristic="position", tolerance=0.05, gdt_name="G2")
+        add_geometric_tolerance(
+            page, "V1", characteristic="flatness", tolerance=0.01, gdt_name="G1"
+        )
+        add_geometric_tolerance(
+            page, "V1", characteristic="position", tolerance=0.05, gdt_name="G2"
+        )
         assert len(page["params"]["gdt"]) == 2
 
 
 # ── Datum Symbol tests ───────────────────────────────────────────────
 
+
 class TestDatumSymbol:
     def test_add_datum_symbol(self):
         page = create_drawing(create_project())
-        datum = add_datum_symbol(page, "V1", letter="A", datum_name="DatumA", x=50, y=120)
+        datum = add_datum_symbol(
+            page, "V1", letter="A", datum_name="DatumA", x=50, y=120
+        )
         assert datum["name"] == "DatumA"
         assert datum["type"] == "TechDraw::DatumSymbol"
         assert datum["view"] == "V1"
@@ -2674,11 +3637,13 @@ class TestDatumSymbol:
 
 # ── Surface Finish tests ─────────────────────────────────────────────
 
+
 class TestSurfaceFinish:
     def test_add_surface_finish_ra(self):
         page = create_drawing(create_project())
-        sf = add_surface_finish(page, "V1", ra=1.6, process="removal_required",
-                                sf_name="SF1", x=80, y=100)
+        sf = add_surface_finish(
+            page, "V1", ra=1.6, process="removal_required", sf_name="SF1", x=80, y=100
+        )
         assert sf["name"] == "SF1"
         assert sf["type"] == "TechDraw::SurfaceFinish"
         assert sf["view"] == "V1"
@@ -2719,13 +3684,17 @@ class TestSurfaceFinish:
 
 # ── GD&T Script Generation tests ────────────────────────────────────
 
+
 class TestGDTScriptGeneration:
     def _make_project_with_gdt(self):
         proj = create_project(name="GDTScript")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 50, "width": 30, "height": 20},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 50, "width": 30, "height": 20},
+            }
+        )
         page = create_drawing(proj, "Sheet1")
         add_view(page, "Box", "V1", direction="front")
         proj["objects"].append(page)
@@ -2733,8 +3702,14 @@ class TestGDTScriptGeneration:
 
     def test_script_has_gdt_annotation(self):
         proj, page = self._make_project_with_gdt()
-        add_geometric_tolerance(page, "V1", characteristic="position",
-                                tolerance=0.05, gdt_name="G1", datum_refs=["A"])
+        add_geometric_tolerance(
+            page,
+            "V1",
+            characteristic="position",
+            tolerance=0.05,
+            gdt_name="G1",
+            datum_refs=["A"],
+        )
         script = _build_techdraw_script(proj, "Sheet1")
         assert "'G1'" in script
         assert "⌖" in script
@@ -2756,40 +3731,65 @@ class TestGDTScriptGeneration:
 
     def test_script_gdt_with_diameter_zone(self):
         proj, page = self._make_project_with_gdt()
-        add_geometric_tolerance(page, "V1", characteristic="position",
-                                tolerance=0.1, diameter_zone=True, gdt_name="G2")
+        add_geometric_tolerance(
+            page,
+            "V1",
+            characteristic="position",
+            tolerance=0.1,
+            diameter_zone=True,
+            gdt_name="G2",
+        )
         script = _build_techdraw_script(proj, "Sheet1")
         assert "∅0.1" in script
 
     def test_script_gdt_with_mmc(self):
         proj, page = self._make_project_with_gdt()
-        add_geometric_tolerance(page, "V1", characteristic="position",
-                                tolerance=0.05, material_condition="MMC", gdt_name="G3")
+        add_geometric_tolerance(
+            page,
+            "V1",
+            characteristic="position",
+            tolerance=0.05,
+            material_condition="MMC",
+            gdt_name="G3",
+        )
         script = _build_techdraw_script(proj, "Sheet1")
         assert "Ⓜ" in script
 
 
 # ── GD&T SVG Export tests ────────────────────────────────────────────
 
+
 class TestGDTSVGExport:
     def _make_project_with_gdt_annotations(self):
         proj = create_project(name="GDTSvg")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box", "label": "Box",
-            "params": {"length": 100, "width": 50, "height": 200},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "label": "Box",
+                "params": {"length": 100, "width": 50, "height": 200},
+            }
+        )
         page = create_drawing(proj, "Sheet1", template="A3_Landscape", scale=0.5)
         proj["objects"].append(page)
         add_view(page, "Box", "V1", direction="front-elevation", x=100, y=150)
-        add_geometric_tolerance(page, "V1", characteristic="position",
-                                tolerance=0.05, datum_refs=["A", "B"],
-                                diameter_zone=True, gdt_name="G1")
-        add_geometric_tolerance(page, "V1", characteristic="flatness",
-                                tolerance=0.01, gdt_name="G2")
+        add_geometric_tolerance(
+            page,
+            "V1",
+            characteristic="position",
+            tolerance=0.05,
+            datum_refs=["A", "B"],
+            diameter_zone=True,
+            gdt_name="G1",
+        )
+        add_geometric_tolerance(
+            page, "V1", characteristic="flatness", tolerance=0.01, gdt_name="G2"
+        )
         add_datum_symbol(page, "V1", letter="A", datum_name="DatA", x=80, y=180)
         add_datum_symbol(page, "V1", letter="B", datum_name="DatB", x=120, y=180)
-        add_surface_finish(page, "V1", ra=1.6, process="removal_required",
-                           sf_name="SF1", x=60, y=100)
+        add_surface_finish(
+            page, "V1", ra=1.6, process="removal_required", sf_name="SF1", x=60, y=100
+        )
         return proj
 
     def test_svg_has_gdt_frame(self, tmp_dir):
@@ -2837,23 +3837,47 @@ class TestGDTSVGExport:
 
 # ── GD&T CLI tests ───────────────────────────────────────────────────
 
+
 class TestGDTCLI:
     def _setup_page(self, runner, tmp_dir, name="gdt_test"):
         path = os.path.join(tmp_dir, f"{name}.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli,
+            ["--json", "--project", path, "techdraw", "view", "P1", "Box", "-n", "V1"],
+        )
         return path
 
     def test_gdt_position_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "gdt_pos")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "gdt", "P1", "V1",
-            "-c", "position", "-t", "0.05", "-d", "A", "-d", "B", "-m", "MMC",
-            "--diameter-zone",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "gdt",
+                "P1",
+                "V1",
+                "-c",
+                "position",
+                "-t",
+                "0.05",
+                "-d",
+                "A",
+                "-d",
+                "B",
+                "-m",
+                "MMC",
+                "--diameter-zone",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::GeometricTolerance"
@@ -2866,10 +3890,22 @@ class TestGDTCLI:
     def test_gdt_flatness_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "gdt_flat")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "gdt", "P1", "V1",
-            "-c", "flatness", "-t", "0.01",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "gdt",
+                "P1",
+                "V1",
+                "-c",
+                "flatness",
+                "-t",
+                "0.01",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["characteristic"] == "flatness"
@@ -2879,10 +3915,24 @@ class TestGDTCLI:
     def test_gdt_perpendicularity_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "gdt_perp")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "gdt", "P1", "V1",
-            "-c", "perpendicularity", "-t", "0.1", "-d", "A",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "gdt",
+                "P1",
+                "V1",
+                "-c",
+                "perpendicularity",
+                "-t",
+                "0.1",
+                "-d",
+                "A",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["characteristic"] == "perpendicularity"
@@ -2891,10 +3941,23 @@ class TestGDTCLI:
     def test_datum_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "datum_cli")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "datum", "P1", "V1", "A",
-            "-x", "50", "-y", "120",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "datum",
+                "P1",
+                "V1",
+                "A",
+                "-x",
+                "50",
+                "-y",
+                "120",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::DatumSymbol"
@@ -2904,10 +3967,22 @@ class TestGDTCLI:
     def test_surface_finish_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "sf_cli")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "surface-finish", "P1", "V1",
-            "--ra", "1.6", "-p", "removal_required",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "surface-finish",
+                "P1",
+                "V1",
+                "--ra",
+                "1.6",
+                "-p",
+                "removal_required",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["type"] == "TechDraw::SurfaceFinish"
@@ -2917,10 +3992,20 @@ class TestGDTCLI:
     def test_surface_finish_rz_json(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "sf_rz")
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "surface-finish", "P1", "V1",
-            "--rz", "6.3",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "surface-finish",
+                "P1",
+                "V1",
+                "--rz",
+                "6.3",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["rz"] == 6.3
@@ -2928,29 +4013,79 @@ class TestGDTCLI:
     def test_surface_finish_no_value_fails(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "sf_err")
-        result = runner.invoke(cli, [
-            "--project", path, "techdraw", "surface-finish", "P1", "V1",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "--project",
+                path,
+                "techdraw",
+                "surface-finish",
+                "P1",
+                "V1",
+            ],
+        )
         assert result.exit_code != 0
         assert "ra" in result.output.lower() or "rz" in result.output.lower()
 
     def test_list_shows_gdt(self, tmp_dir):
         runner = CliRunner()
         path = self._setup_page(runner, tmp_dir, "list_gdt")
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "gdt", "P1", "V1",
-            "-c", "position", "-t", "0.05", "-d", "A",
-        ])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "datum", "P1", "V1", "A",
-        ])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "surface-finish", "P1", "V1",
-            "--ra", "1.6",
-        ])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "list", "P1",
-        ])
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "gdt",
+                "P1",
+                "V1",
+                "-c",
+                "position",
+                "-t",
+                "0.05",
+                "-d",
+                "A",
+            ],
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "datum",
+                "P1",
+                "V1",
+                "A",
+            ],
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "surface-finish",
+                "P1",
+                "V1",
+                "--ra",
+                "1.6",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "list",
+                "P1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["gdt"]) == 1
@@ -2960,20 +4095,33 @@ class TestGDTCLI:
 
 # ── Weld Symbol Tests ──────────────────────────────────────────────
 
+
 class TestWeldConstants:
     """Test weld symbol constants completeness."""
 
     def test_weld_types_complete(self):
         from cli_anything.freecad.core.techdraw import WELD_TYPES
+
         expected = {
-            "fillet", "v_groove", "square_groove", "bevel_groove",
-            "u_groove", "j_groove", "plug", "bead",
-            "spot", "seam", "edge", "flare_v", "flare_bevel",
+            "fillet",
+            "v_groove",
+            "square_groove",
+            "bevel_groove",
+            "u_groove",
+            "j_groove",
+            "plug",
+            "bead",
+            "spot",
+            "seam",
+            "edge",
+            "flare_v",
+            "flare_bevel",
         }
         assert set(WELD_TYPES.keys()) == expected
 
     def test_weld_types_have_symbols(self):
         from cli_anything.freecad.core.techdraw import WELD_TYPES
+
         for name, info in WELD_TYPES.items():
             assert "symbol" in info, f"{name} missing symbol"
             assert "description" in info, f"{name} missing description"
@@ -2982,12 +4130,14 @@ class TestWeldConstants:
 
     def test_weld_contours(self):
         from cli_anything.freecad.core.techdraw import WELD_CONTOURS
+
         assert "flush" in WELD_CONTOURS
         assert "convex" in WELD_CONTOURS
         assert "concave" in WELD_CONTOURS
 
     def test_weld_processes(self):
         from cli_anything.freecad.core.techdraw import WELD_PROCESSES
+
         assert "GMAW" in WELD_PROCESSES
         assert "SMAW" in WELD_PROCESSES
         assert "GTAW" in WELD_PROCESSES
@@ -2999,11 +4149,15 @@ class TestWeldSymbol:
     def _make_page(self):
         from cli_anything.freecad.core.project import create_project
         from cli_anything.freecad.core.techdraw import create_drawing, add_view
+
         proj = create_project(name="WeldTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="Sheet1")
         add_view(page, "Box", view_name="V1", direction="front")
         proj["objects"].append(page)
@@ -3011,6 +4165,7 @@ class TestWeldSymbol:
 
     def test_fillet_weld(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         weld = add_weld_symbol(page, "V1", weld_type="fillet", size="6")
         assert weld["weld_type"] == "fillet"
@@ -3021,10 +4176,14 @@ class TestWeldSymbol:
 
     def test_v_groove_all_around(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         weld = add_weld_symbol(
-            page, "V1", weld_type="v_groove",
-            all_around=True, tail="GMAW",
+            page,
+            "V1",
+            weld_type="v_groove",
+            all_around=True,
+            tail="GMAW",
         )
         assert weld["all_around"] is True
         assert weld["tail"] == "GMAW"
@@ -3032,10 +4191,15 @@ class TestWeldSymbol:
 
     def test_bevel_field_weld_flush(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         weld = add_weld_symbol(
-            page, "V1", weld_type="bevel_groove",
-            field_weld=True, contour="flush", length="50",
+            page,
+            "V1",
+            weld_type="bevel_groove",
+            field_weld=True,
+            contour="flush",
+            length="50",
         )
         assert weld["field_weld"] is True
         assert weld["contour"] == "flush"
@@ -3044,24 +4208,28 @@ class TestWeldSymbol:
 
     def test_invalid_weld_type_raises(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         with pytest.raises(ValueError, match="Unknown weld type"):
             add_weld_symbol(page, "V1", weld_type="nonexistent")
 
     def test_invalid_side_raises(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         with pytest.raises(ValueError, match="Side must be"):
             add_weld_symbol(page, "V1", weld_type="fillet", side="both")
 
     def test_invalid_contour_raises(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         with pytest.raises(ValueError, match="Unknown contour"):
             add_weld_symbol(page, "V1", weld_type="fillet", contour="wavy")
 
     def test_other_side(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         weld = add_weld_symbol(page, "V1", weld_type="fillet", side="other", size="4")
         assert weld["side"] == "other"
@@ -3070,6 +4238,7 @@ class TestWeldSymbol:
 
     def test_multiple_welds_on_page(self):
         from cli_anything.freecad.core.techdraw import add_weld_symbol
+
         _, page = self._make_page()
         add_weld_symbol(page, "V1", weld_type="fillet", weld_name="W1")
         add_weld_symbol(page, "V1", weld_type="v_groove", weld_name="W2")
@@ -3082,22 +4251,30 @@ class TestWeldTile:
     def _make_page_with_weld(self):
         from cli_anything.freecad.core.project import create_project
         from cli_anything.freecad.core.techdraw import (
-            create_drawing, add_view, add_weld_symbol,
+            create_drawing,
+            add_view,
+            add_weld_symbol,
         )
+
         proj = create_project(name="WeldTileTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="Sheet1")
         add_view(page, "Box", view_name="V1", direction="front")
         proj["objects"].append(page)
-        add_weld_symbol(page, "V1", weld_type="fillet", side="arrow",
-                        size="6", weld_name="W1")
+        add_weld_symbol(
+            page, "V1", weld_type="fillet", side="arrow", size="6", weld_name="W1"
+        )
         return proj, page
 
     def test_add_other_side_tile(self):
         from cli_anything.freecad.core.techdraw import add_weld_tile
+
         _, page = self._make_page_with_weld()
         tile = add_weld_tile(page, "W1", weld_type="fillet", side="other", size="4")
         assert tile["side"] == "other"
@@ -3108,12 +4285,14 @@ class TestWeldTile:
 
     def test_tile_different_type(self):
         from cli_anything.freecad.core.techdraw import add_weld_tile
+
         _, page = self._make_page_with_weld()
         tile = add_weld_tile(page, "W1", weld_type="v_groove", side="other")
         assert tile["weld_type"] == "v_groove"
 
     def test_tile_nonexistent_weld_raises(self):
         from cli_anything.freecad.core.techdraw import add_weld_tile
+
         _, page = self._make_page_with_weld()
         with pytest.raises(ValueError, match="Weld symbol not found"):
             add_weld_tile(page, "NonExistent", weld_type="fillet")
@@ -3125,13 +4304,19 @@ class TestWeldScriptGeneration:
     def _make_page_with_weld(self):
         from cli_anything.freecad.core.project import create_project
         from cli_anything.freecad.core.techdraw import (
-            create_drawing, add_view, add_weld_symbol,
+            create_drawing,
+            add_view,
+            add_weld_symbol,
         )
+
         proj = create_project(name="ScriptTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="Sheet1")
         add_view(page, "Box", view_name="V1", direction="front")
         proj["objects"].append(page)
@@ -3139,8 +4324,10 @@ class TestWeldScriptGeneration:
 
     def test_script_has_weld_annotation(self):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, _build_techdraw_script,
+            add_weld_symbol,
+            _build_techdraw_script,
         )
+
         proj, page = self._make_page_with_weld()
         add_weld_symbol(page, "V1", weld_type="fillet", size="6", weld_name="W1")
         script = _build_techdraw_script(proj, "Sheet1")
@@ -3149,21 +4336,23 @@ class TestWeldScriptGeneration:
 
     def test_script_weld_with_tail(self):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, _build_techdraw_script,
+            add_weld_symbol,
+            _build_techdraw_script,
         )
+
         proj, page = self._make_page_with_weld()
-        add_weld_symbol(page, "V1", weld_type="v_groove",
-                        tail="GMAW", weld_name="W2")
+        add_weld_symbol(page, "V1", weld_type="v_groove", tail="GMAW", weld_name="W2")
         script = _build_techdraw_script(proj, "Sheet1")
         assert "GMAW" in script
 
     def test_script_weld_all_around(self):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, _build_techdraw_script,
+            add_weld_symbol,
+            _build_techdraw_script,
         )
+
         proj, page = self._make_page_with_weld()
-        add_weld_symbol(page, "V1", weld_type="fillet",
-                        all_around=True, weld_name="W3")
+        add_weld_symbol(page, "V1", weld_type="fillet", all_around=True, weld_name="W3")
         script = _build_techdraw_script(proj, "Sheet1")
         assert "○" in script
 
@@ -3174,13 +4363,20 @@ class TestWeldSVGExport:
     def _make_page_with_weld(self, tmp_path):
         from cli_anything.freecad.core.project import create_project
         from cli_anything.freecad.core.techdraw import (
-            create_drawing, add_view, add_weld_symbol, export_drawing_svg,
+            create_drawing,
+            add_view,
+            add_weld_symbol,
+            export_drawing_svg,
         )
+
         proj = create_project(name="SVGTest")
-        proj["objects"].append({
-            "name": "Box", "type": "Part::Box",
-            "params": {"length": 20, "width": 15, "height": 10},
-        })
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 20, "width": 15, "height": 10},
+            }
+        )
         page = create_drawing(proj, page_name="Sheet1")
         add_view(page, "Box", view_name="V1", direction="front")
         proj["objects"].append(page)
@@ -3188,8 +4384,10 @@ class TestWeldSVGExport:
 
     def test_svg_has_weld_reference_line(self, tmp_path):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, export_drawing_svg,
+            add_weld_symbol,
+            export_drawing_svg,
         )
+
         proj, page = self._make_page_with_weld(tmp_path)
         add_weld_symbol(page, "V1", weld_type="fillet", size="6")
         svg_path = str(tmp_path / "weld.svg")
@@ -3198,12 +4396,14 @@ class TestWeldSVGExport:
         with open(svg_path, encoding="utf-8") as f:
             content = f.read()
         # Reference line + arrow line
-        assert "stroke-width=\"0.4\"" in content
+        assert 'stroke-width="0.4"' in content
 
     def test_svg_has_weld_fillet_triangle(self, tmp_path):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, export_drawing_svg,
+            add_weld_symbol,
+            export_drawing_svg,
         )
+
         proj, page = self._make_page_with_weld(tmp_path)
         add_weld_symbol(page, "V1", weld_type="fillet", size="6")
         svg_path = str(tmp_path / "weld_fillet.svg")
@@ -3218,8 +4418,10 @@ class TestWeldSVGExport:
 
     def test_svg_has_all_around_circle(self, tmp_path):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, export_drawing_svg,
+            add_weld_symbol,
+            export_drawing_svg,
         )
+
         proj, page = self._make_page_with_weld(tmp_path)
         add_weld_symbol(page, "V1", weld_type="fillet", all_around=True)
         svg_path = str(tmp_path / "weld_allaround.svg")
@@ -3232,8 +4434,10 @@ class TestWeldSVGExport:
 
     def test_svg_has_tail_text(self, tmp_path):
         from cli_anything.freecad.core.techdraw import (
-            add_weld_symbol, export_drawing_svg,
+            add_weld_symbol,
+            export_drawing_svg,
         )
+
         proj, page = self._make_page_with_weld(tmp_path)
         add_weld_symbol(page, "V1", weld_type="v_groove", tail="GTAW")
         svg_path = str(tmp_path / "weld_tail.svg")
@@ -3250,16 +4454,35 @@ class TestWeldCLI:
     def test_weld_fillet_json(self, tmp_path):
         from click.testing import CliRunner
         from cli_anything.freecad.freecad_cli import cli
+
         runner = CliRunner()
         path = str(tmp_path / "weld_cli.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld", "P1", "View",
-            "-t", "fillet", "--size", "6", "--length", "50",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld",
+                "P1",
+                "View",
+                "-t",
+                "fillet",
+                "--size",
+                "6",
+                "--length",
+                "50",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["weld_type"] == "fillet"
@@ -3269,16 +4492,34 @@ class TestWeldCLI:
     def test_weld_v_groove_all_around_json(self, tmp_path):
         from click.testing import CliRunner
         from cli_anything.freecad.freecad_cli import cli
+
         runner = CliRunner()
         path = str(tmp_path / "weld_cli2.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld", "P1", "View",
-            "-t", "v_groove", "--all-around", "--tail", "GMAW",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld",
+                "P1",
+                "View",
+                "-t",
+                "v_groove",
+                "--all-around",
+                "--tail",
+                "GMAW",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["all_around"] is True
@@ -3287,20 +4528,53 @@ class TestWeldCLI:
     def test_weld_tile_json(self, tmp_path):
         from click.testing import CliRunner
         from cli_anything.freecad.freecad_cli import cli
+
         runner = CliRunner()
         path = str(tmp_path / "weld_tile_cli.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld", "P1", "View",
-            "-t", "fillet", "--size", "6", "-n", "W1",
-        ])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld-tile", "P1", "W1",
-            "-t", "fillet", "-s", "other", "--size", "4",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld",
+                "P1",
+                "View",
+                "-t",
+                "fillet",
+                "--size",
+                "6",
+                "-n",
+                "W1",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld-tile",
+                "P1",
+                "W1",
+                "-t",
+                "fillet",
+                "-s",
+                "other",
+                "--size",
+                "4",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["side"] == "other"
@@ -3309,16 +4583,34 @@ class TestWeldCLI:
     def test_weld_with_contour_json(self, tmp_path):
         from click.testing import CliRunner
         from cli_anything.freecad.freecad_cli import cli
+
         runner = CliRunner()
         path = str(tmp_path / "weld_contour.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld", "P1", "View",
-            "-t", "bevel_groove", "--contour", "flush", "--field-weld",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld",
+                "P1",
+                "View",
+                "-t",
+                "bevel_groove",
+                "--contour",
+                "flush",
+                "--field-weld",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["contour"] == "flush"
@@ -3327,20 +4619,811 @@ class TestWeldCLI:
     def test_list_shows_welds(self, tmp_path):
         from click.testing import CliRunner
         from cli_anything.freecad.freecad_cli import cli
+
         runner = CliRunner()
         path = str(tmp_path / "weld_list.json")
         runner.invoke(cli, ["--json", "project", "new", "-o", path])
         runner.invoke(cli, ["--json", "--project", path, "part", "box"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"])
-        runner.invoke(cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"])
-        runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "weld", "P1", "View",
-            "-t", "fillet", "--size", "6",
-        ])
-        result = runner.invoke(cli, [
-            "--json", "--project", path, "techdraw", "list", "P1",
-        ])
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "page", "-n", "P1"]
+        )
+        runner.invoke(
+            cli, ["--json", "--project", path, "techdraw", "view", "P1", "Box"]
+        )
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "weld",
+                "P1",
+                "View",
+                "-t",
+                "fillet",
+                "--size",
+                "6",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "techdraw",
+                "list",
+                "P1",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["welds"]) == 1
         assert data["welds"][0]["weld_type"] == "fillet"
+
+
+# ── Part Array (Linear + Polar) tests ────────────────────────────────
+
+
+class TestLinearPatternScript:
+    """Tests for Part::LinearPattern in _object_to_script."""
+
+    def test_linear_pattern_script(self):
+        obj = {
+            "name": "LinArr",
+            "type": "Part::LinearPattern",
+            "params": {
+                "source": "Box",
+                "nx": 3,
+                "ny": 2,
+                "nz": 1,
+                "dx": 20,
+                "dy": 15,
+                "dz": 0,
+            },
+        }
+        script = _object_to_script(obj)
+        assert "Part::MultiFuse" in script
+        assert "'Box'" in script
+        assert "range(3)" in script
+        assert "range(2)" in script
+        assert "_ix*20" in script
+        assert "_iy*15" in script
+
+    def test_linear_pattern_defaults(self):
+        obj = {
+            "name": "LD",
+            "type": "Part::LinearPattern",
+            "params": {"source": "Cyl"},
+        }
+        script = _object_to_script(obj)
+        assert "Part::MultiFuse" in script
+        assert "range(3)" in script  # default nx=3
+
+
+class TestPolarPatternScript:
+    """Tests for Part::PolarPattern in _object_to_script."""
+
+    def test_polar_pattern_script(self):
+        obj = {
+            "name": "PolArr",
+            "type": "Part::PolarPattern",
+            "params": {
+                "source": "Tooth",
+                "count": 6,
+                "angle": 360,
+                "axis_x": 0,
+                "axis_y": 0,
+                "axis_z": 1,
+                "cx": 0,
+                "cy": 0,
+                "cz": 0,
+            },
+        }
+        script = _object_to_script(obj)
+        assert "Part::MultiFuse" in script
+        assert "'Tooth'" in script
+        assert "range(1, 6)" in script
+        assert "360 / 6" in script
+        assert "rotate" in script
+
+    def test_polar_partial_angle(self):
+        obj = {
+            "name": "HalfPol",
+            "type": "Part::PolarPattern",
+            "params": {"source": "Blade", "count": 3, "angle": 180, "axis_z": 1},
+        }
+        script = _object_to_script(obj)
+        assert "180 / 3" in script
+
+
+class TestArrayCLI:
+    """CLI tests for linear and polar array commands."""
+
+    def test_linear_array_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "linarr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "array-linear",
+                "Box",
+                "--nx",
+                "4",
+                "--ny",
+                "2",
+                "--dx",
+                "25",
+                "--dy",
+                "25",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::LinearPattern"
+        assert data["params"]["nx"] == 4
+        assert data["params"]["dx"] == 25.0
+
+    def test_polar_array_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "polarr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Tooth"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "array-polar",
+                "Tooth",
+                "-c",
+                "8",
+                "-a",
+                "360",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::PolarPattern"
+        assert data["params"]["count"] == 8
+
+    def test_linear_array_missing_source(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "linerr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "array-linear",
+                "NoObj",
+            ],
+        )
+        assert result.exit_code != 0
+
+
+# ── Part Mirror tests ────────────────────────────────────────────────
+
+
+class TestMirrorScript:
+    def test_mirror_script(self):
+        obj = {
+            "name": "Mir",
+            "type": "Part::Mirror",
+            "params": {
+                "source": "Box",
+                "normal_x": 1,
+                "normal_y": 0,
+                "normal_z": 0,
+                "base_x": 0,
+                "base_y": 0,
+                "base_z": 0,
+            },
+        }
+        script = _object_to_script(obj)
+        assert "Part::Feature" in script
+        assert "mirror" in script
+        assert "Vector(0, 0, 0)" in script
+        assert "Vector(1, 0, 0)" in script
+
+
+class TestMirrorCLI:
+    def test_mirror_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "mir.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "mirror",
+                "Box",
+                "--nx",
+                "1",
+                "--ny",
+                "0",
+                "--nz",
+                "0",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::Mirror"
+        assert data["params"]["normal_x"] == 1.0
+
+
+# ── Part Loft tests ──────────────────────────────────────────────────
+
+
+class TestLoftScript:
+    def test_loft_script(self):
+        obj = {
+            "name": "Loft1",
+            "type": "Part::Loft",
+            "params": {
+                "profiles": ["Sketch1", "Sketch2", "Sketch3"],
+                "solid": True,
+                "ruled": False,
+                "closed": False,
+            },
+        }
+        script = _object_to_script(obj)
+        assert "Part::Loft" in script
+        assert "'Sketch1'" in script
+        assert "'Sketch2'" in script
+        assert ".Solid = True" in script
+        assert ".Ruled = False" in script
+
+    def test_loft_non_solid(self):
+        obj = {
+            "name": "ShellLoft",
+            "type": "Part::Loft",
+            "params": {
+                "profiles": ["S1", "S2"],
+                "solid": False,
+                "ruled": True,
+                "closed": True,
+            },
+        }
+        script = _object_to_script(obj)
+        assert ".Solid = False" in script
+        assert ".Ruled = True" in script
+        assert ".Closed = True" in script
+
+
+class TestLoftCLI:
+    def test_loft_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "loft.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S2"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "loft",
+                "S1",
+                "S2",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::Loft"
+        assert len(data["params"]["profiles"]) == 2
+
+
+# ── Part Shell tests ─────────────────────────────────────────────────
+
+
+class TestShellScript:
+    def test_shell_script(self):
+        obj = {
+            "name": "Shell1",
+            "type": "Part::Thickness",
+            "params": {"source": "Box", "thickness": 2.5, "faces": [1, 3]},
+        }
+        script = _object_to_script(obj)
+        assert "Part::Thickness" in script
+        assert ".Value = 2.5" in script
+        assert "[1, 3]" in script
+
+    def test_shell_no_faces(self):
+        obj = {
+            "name": "Sh",
+            "type": "Part::Thickness",
+            "params": {"source": "Box", "thickness": 1.0, "faces": []},
+        }
+        script = _object_to_script(obj)
+        assert "[]" in script
+
+
+class TestShellCLI:
+    def test_shell_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "shell.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "shell",
+                "Box",
+                "-t",
+                "3.0",
+                "--faces",
+                "0,1",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::Thickness"
+        assert data["params"]["thickness"] == 3.0
+
+
+# ── Part Rotate tests ────────────────────────────────────────────────
+
+
+class TestRotateCLI:
+    def test_rotate_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "rot.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "part", "box", "-n", "Box"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "rotate",
+                "Box",
+                "-a",
+                "90",
+                "--axis-z",
+                "1",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["params"]["placement"]["rotation"]["angle"] == 90.0
+
+    def test_rotate_nonexistent(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "roterr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        result = runner.invoke(
+            cli,
+            [
+                "--project",
+                path,
+                "part",
+                "rotate",
+                "NoObj",
+                "-a",
+                "45",
+            ],
+        )
+        assert result.exit_code != 0
+
+
+# ── Part Import-STEP tests ───────────────────────────────────────────
+
+
+class TestImportStepScript:
+    def test_import_step_script(self):
+        obj = {
+            "name": "Step1",
+            "type": "Part::ImportSTEP",
+            "params": {"filepath": "/tmp/model.step"},
+        }
+        script = _object_to_script(obj)
+        assert "Part.insert" in script
+        assert "/tmp/model.step" in script
+
+
+class TestImportStepCLI:
+    def test_import_step_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "step.json")
+        # Create a dummy STEP file
+        step_file = os.path.join(tmp_dir, "test.step")
+        with open(step_file, "w") as f:
+            f.write("ISO-10303-21;\nEND-ISO-10303-21;")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "import-step",
+                step_file,
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "Part::ImportSTEP"
+        assert "test.step" in data["params"]["filepath"]
+
+
+# ── Part Measure tests ───────────────────────────────────────────────
+
+
+class TestMeasureCLI:
+    def test_measure_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "meas.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "box",
+                "-l",
+                "50",
+                "-w",
+                "30",
+                "-H",
+                "20",
+                "-n",
+                "Box",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "part",
+                "measure",
+                "Box",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["name"] == "Box"
+        assert data["type"] == "Part::Box"
+
+    def test_measure_nonexistent(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "meerr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        result = runner.invoke(
+            cli,
+            [
+                "--project",
+                path,
+                "part",
+                "measure",
+                "NoSuch",
+            ],
+        )
+        assert result.exit_code != 0
+
+
+# ── Sketch Polygon tests ─────────────────────────────────────────────
+
+
+class TestPolygonScript:
+    def test_polygon_script(self):
+        geom = {
+            "type": "polygon",
+            "cx": 10,
+            "cy": 20,
+            "radius": 15,
+            "sides": 6,
+            "rotation": 0,
+        }
+        script = _sketch_geometry_to_script(geom)
+        assert "math" in script
+        assert "range(6)" in script
+        assert "cos" in script
+        assert "sin" in script
+
+    def test_polygon_3_sides(self):
+        geom = {
+            "type": "polygon",
+            "cx": 0,
+            "cy": 0,
+            "radius": 5,
+            "sides": 3,
+            "rotation": 0,
+        }
+        script = _sketch_geometry_to_script(geom)
+        assert "range(3)" in script
+
+
+class TestPolygonCLI:
+    def test_polygon_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "poly.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "sketch",
+                "polygon",
+                "S1",
+                "-r",
+                "20",
+                "-s",
+                "8",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "polygon"
+        assert data["sides"] == 8
+
+    def test_polygon_invalid_sides(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "polyerr.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        result = runner.invoke(
+            cli,
+            [
+                "--project",
+                path,
+                "sketch",
+                "polygon",
+                "S1",
+                "-s",
+                "2",
+            ],
+        )
+        assert result.exit_code != 0
+
+
+# ── Sketch Ellipse tests ─────────────────────────────────────────────
+
+
+class TestEllipseScript:
+    def test_ellipse_script(self):
+        geom = {
+            "type": "ellipse",
+            "cx": 5,
+            "cy": 10,
+            "radius_major": 20,
+            "radius_minor": 10,
+            "rotation": 0,
+        }
+        script = _sketch_geometry_to_script(geom)
+        assert "Part.Ellipse" in script
+        assert "20" in script
+        assert "10" in script
+
+
+class TestEllipseCLI:
+    def test_ellipse_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "ell.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "sketch",
+                "ellipse",
+                "S1",
+                "-r1",
+                "25",
+                "-r2",
+                "12",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["type"] == "ellipse"
+        assert data["radius_major"] == 25.0
+        assert data["radius_minor"] == 12.0
+
+
+# ── Sketch Close tests ───────────────────────────────────────────────
+
+
+class TestSketchCloseCLI:
+    def test_close_json(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "close.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "sketch",
+                "line",
+                "S1",
+                "--x1",
+                "0",
+                "--y1",
+                "0",
+                "--x2",
+                "10",
+                "--y2",
+                "0",
+            ],
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "--json",
+                "--project",
+                path,
+                "sketch",
+                "close",
+                "S1",
+            ],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["closed"] is True
+
+    def test_close_persists(self, tmp_dir):
+        runner = CliRunner()
+        path = os.path.join(tmp_dir, "closep.json")
+        runner.invoke(cli, ["--json", "project", "new", "-o", path])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "new", "-n", "S1"])
+        runner.invoke(cli, ["--json", "--project", path, "sketch", "close", "S1"])
+        with open(path) as f:
+            proj = json.load(f)
+        sketch_obj = [o for o in proj["objects"] if o["name"] == "S1"][0]
+        assert sketch_obj["params"]["closed"] is True
+
+
+# ── Integration test: new object types in project script ─────────────
+
+
+class TestNewTypesInProjectScript:
+    """Verify all new types generate valid scripts through _build_project_script."""
+
+    def test_full_project_with_all_new_types(self):
+        proj = create_project(name="AllNew")
+        proj["objects"].append(
+            {
+                "name": "Box",
+                "type": "Part::Box",
+                "params": {"length": 50, "width": 30, "height": 20},
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "S1",
+                "type": "Sketcher::SketchObject",
+                "params": {
+                    "plane": "XY",
+                    "geometry": [
+                        {
+                            "type": "ellipse",
+                            "cx": 0,
+                            "cy": 0,
+                            "radius_major": 20,
+                            "radius_minor": 10,
+                            "rotation": 0,
+                        },
+                        {
+                            "type": "polygon",
+                            "cx": 30,
+                            "cy": 30,
+                            "radius": 10,
+                            "sides": 5,
+                            "rotation": 0,
+                        },
+                    ],
+                    "constraints": [],
+                    "closed": True,
+                },
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "LinArr",
+                "type": "Part::LinearPattern",
+                "params": {
+                    "source": "Box",
+                    "nx": 2,
+                    "ny": 2,
+                    "nz": 1,
+                    "dx": 60,
+                    "dy": 40,
+                    "dz": 0,
+                },
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "PolArr",
+                "type": "Part::PolarPattern",
+                "params": {"source": "Box", "count": 4, "angle": 90, "axis_z": 1},
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "Mir",
+                "type": "Part::Mirror",
+                "params": {
+                    "source": "Box",
+                    "normal_x": 1,
+                    "normal_y": 0,
+                    "normal_z": 0,
+                },
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "Loft1",
+                "type": "Part::Loft",
+                "params": {
+                    "profiles": ["S1", "Box"],
+                    "solid": True,
+                    "ruled": False,
+                    "closed": False,
+                },
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "Sh",
+                "type": "Part::Thickness",
+                "params": {"source": "Box", "thickness": 2.0, "faces": []},
+            }
+        )
+        proj["objects"].append(
+            {
+                "name": "Stp",
+                "type": "Part::ImportSTEP",
+                "params": {"filepath": "/tmp/m.step"},
+            }
+        )
+
+        script = _build_project_script(proj)
+        assert "FreeCAD.newDocument" in script
+        assert "Part::Box" in script
+        assert "Part::MultiFuse" in script
+        assert "mirror" in script
+        assert "Part::Loft" in script
+        assert "Part::Thickness" in script
+        assert "Part.insert" in script
+        assert "Part.Ellipse" in script
+        assert "math.cos" in script
+        assert "doc.recompute()" in script

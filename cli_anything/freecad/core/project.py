@@ -135,11 +135,13 @@ def get_project_info(project: dict[str, Any]) -> dict[str, Any]:
     }
 
     for obj in project.get("objects", []):
-        info["objects"].append({
-            "name": obj.get("name"),
-            "type": obj.get("type"),
-            "label": obj.get("label", obj.get("name")),
-        })
+        info["objects"].append(
+            {
+                "name": obj.get("name"),
+                "type": obj.get("type"),
+                "label": obj.get("label", obj.get("name")),
+            }
+        )
 
     return info
 
@@ -194,11 +196,7 @@ def _build_project_script(project: dict[str, Any]) -> str:
         Python script string.
     """
     name = project.get("name", "Untitled")
-    script = (
-        "import FreeCAD\n"
-        "import Part\n"
-        f"doc = FreeCAD.newDocument({name!r})\n"
-    )
+    script = f"import FreeCAD\nimport Part\ndoc = FreeCAD.newDocument({name!r})\n"
 
     for obj in project.get("objects", []):
         script += _object_to_script(obj)
@@ -254,8 +252,7 @@ def _object_to_script(obj: dict[str, Any]) -> str:
     elif obj_type == "Part::Sphere":
         r = params.get("radius", 5)
         return (
-            f"_obj = doc.addObject('Part::Sphere', {name!r})\n"
-            f"_obj.Radius = {r}\n"
+            f"_obj = doc.addObject('Part::Sphere', {name!r})\n_obj.Radius = {r}\n"
         ) + _placement_script(params)
     elif obj_type == "Part::Cone":
         r1 = params.get("radius1", 5)
@@ -362,6 +359,101 @@ def _object_to_script(obj: dict[str, Any]) -> str:
             f"_obj.Base = doc.getObject({base!r})\n"
             f"_obj.Dir = FreeCAD.Vector({dx}, {dy}, {dz})\n"
         )
+    elif obj_type == "Part::LinearPattern":
+        source = params.get("source")
+        nx = params.get("nx", 3)
+        ny = params.get("ny", 1)
+        nz = params.get("nz", 1)
+        dx = params.get("dx", 20)
+        dy = params.get("dy", 0)
+        dz = params.get("dz", 0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::MultiFuse', {name!r})\n"
+            f"_shapes = [_src.Shape]\n"
+            f"for _ix in range({nx}):\n"
+            f"    for _iy in range({ny}):\n"
+            f"        for _iz in range({nz}):\n"
+            f"            if _ix == 0 and _iy == 0 and _iz == 0:\n"
+            f"                continue\n"
+            f"            _shapes.append(_src.Shape.copy())\n"
+            f"            _shapes[-1].translate(FreeCAD.Vector(_ix*{dx}, _iy*{dy}, _iz*{dz}))\n"
+            f"_obj.Shapes = _shapes\n"
+        ) + _placement_script(params)
+    elif obj_type == "Part::PolarPattern":
+        source = params.get("source")
+        count = params.get("count", 6)
+        angle = params.get("angle", 360)
+        ax = params.get("axis_x", 0)
+        ay = params.get("axis_y", 0)
+        az = params.get("axis_z", 1)
+        cx = params.get("cx", 0)
+        cy = params.get("cy", 0)
+        cz = params.get("cz", 0)
+        return (
+            f"import math\n"
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::MultiFuse', {name!r})\n"
+            f"_axis = FreeCAD.Vector({ax}, {ay}, {az}).normalize()\n"
+            f"_center = FreeCAD.Vector({cx}, {cy}, {cz})\n"
+            f"_shapes = [_src.Shape]\n"
+            f"_step = {angle} / {count}\n"
+            f"for _i in range(1, {count}):\n"
+            f"    _s = _src.Shape.copy()\n"
+            f"    _rot = FreeCAD.Rotation(_axis, _i * _step)\n"
+            f"    _s.rotate(_center, _axis, _i * _step)\n"
+            f"    _shapes.append(_s)\n"
+            f"_obj.Shapes = _shapes\n"
+        ) + _placement_script(params)
+    elif obj_type == "Part::Mirror":
+        source = params.get("source")
+        nx = params.get("normal_x", 1)
+        ny = params.get("normal_y", 0)
+        nz = params.get("normal_z", 0)
+        bx = params.get("base_x", 0)
+        by = params.get("base_y", 0)
+        bz = params.get("base_z", 0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Feature', {name!r})\n"
+            f"_obj.Shape = _src.Shape.mirror("
+            f"FreeCAD.Vector({bx}, {by}, {bz}), "
+            f"FreeCAD.Vector({nx}, {ny}, {nz}))\n"
+        )
+    elif obj_type == "Part::Loft":
+        profiles = params.get("profiles", [])
+        solid = params.get("solid", True)
+        ruled = params.get("ruled", False)
+        closed = params.get("closed", False)
+        prof_refs = ", ".join(f"doc.getObject({p!r})" for p in profiles)
+        return (
+            f"doc.recompute()\n"
+            f"_profiles = [{prof_refs}]\n"
+            f"_obj = doc.addObject('Part::Loft', {name!r})\n"
+            f"_obj.Sections = _profiles\n"
+            f"_obj.Solid = {solid}\n"
+            f"_obj.Ruled = {ruled}\n"
+            f"_obj.Closed = {closed}\n"
+        )
+    elif obj_type == "Part::Thickness":
+        source = params.get("source")
+        thickness = params.get("thickness", 2.0)
+        faces = params.get("faces", [])
+        faces_str = str(faces) if faces else "[]"
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Thickness', {name!r})\n"
+            f"_obj.Faces = {faces_str}\n"
+            f"_obj.Value = {thickness}\n"
+            f"_obj.Source = _src\n"
+        )
+    elif obj_type == "Part::ImportSTEP":
+        filepath = params.get("filepath", "")
+        return f"import Part\nPart.insert({filepath!r}, doc.Name)\n"
     elif obj_type == "Sketcher::SketchObject":
         plane = params.get("plane", "XY")
         geometry = params.get("geometry", [])
@@ -383,13 +475,13 @@ def _object_to_script(obj: dict[str, Any]) -> str:
         for con in constraints:
             script += _sketch_constraint_to_script(con)
 
+        if params.get("closed"):
+            script += "# Sketch marked as closed\n"
+
         return script
     elif obj_type == "Mesh::Import":
         filepath = params.get("filepath", "")
-        return (
-            f"import Mesh\n"
-            f"Mesh.insert({filepath!r}, doc.Name)\n"
-        )
+        return f"import Mesh\nMesh.insert({filepath!r}, doc.Name)\n"
     else:
         return f"# Unknown object type: {obj_type}\n"
 
@@ -420,6 +512,7 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
         a1 = geom.get("start_angle", 0)
         a2 = geom.get("end_angle", 90)
         import math
+
         a1_rad = math.radians(a1)
         a2_rad = math.radians(a2)
         return (
@@ -434,10 +527,10 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
         w, h = geom.get("width", 10), geom.get("height", 10)
         return (
             f"_gi = _obj.GeometryCount\n"
-            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x},{y},0), FreeCAD.Vector({x+w},{y},0)))\n"
-            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x+w},{y},0), FreeCAD.Vector({x+w},{y+h},0)))\n"
-            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x+w},{y+h},0), FreeCAD.Vector({x},{y+h},0)))\n"
-            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x},{y+h},0), FreeCAD.Vector({x},{y},0)))\n"
+            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x},{y},0), FreeCAD.Vector({x + w},{y},0)))\n"
+            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x + w},{y},0), FreeCAD.Vector({x + w},{y + h},0)))\n"
+            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x + w},{y + h},0), FreeCAD.Vector({x},{y + h},0)))\n"
+            f"_obj.addGeometry(Part.LineSegment(FreeCAD.Vector({x},{y + h},0), FreeCAD.Vector({x},{y},0)))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Coincident', _gi, 2, _gi+1, 1))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Coincident', _gi+1, 2, _gi+2, 1))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Coincident', _gi+2, 2, _gi+3, 1))\n"
@@ -446,6 +539,38 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
             f"_obj.addConstraint(Sketcher.Constraint('Vertical', _gi+1))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Horizontal', _gi+2))\n"
             f"_obj.addConstraint(Sketcher.Constraint('Vertical', _gi+3))\n"
+        )
+    elif gtype == "polygon":
+        cx = geom.get("cx", 0)
+        cy = geom.get("cy", 0)
+        r = geom.get("radius", 5)
+        sides = geom.get("sides", 6)
+        rotation = geom.get("rotation", 0)
+        return (
+            f"import math\n"
+            f"_gi = _obj.GeometryCount\n"
+            f"_angle_offset = math.radians({rotation})\n"
+            f"_pts = []\n"
+            f"for _i in range({sides}):\n"
+            f"    _a = _angle_offset + 2 * math.pi * _i / {sides}\n"
+            f"    _pts.append(FreeCAD.Vector({cx} + {r} * math.cos(_a), {cy} + {r} * math.sin(_a), 0))\n"
+            f"for _i in range({sides}):\n"
+            f"    _next = (_i + 1) % {sides}\n"
+            f"    _obj.addGeometry(Part.LineSegment(_pts[_i], _pts[_next]))\n"
+            f"for _i in range({sides} - 1):\n"
+            f"    _obj.addConstraint(Sketcher.Constraint('Coincident', _gi + _i, 2, _gi + _i + 1, 1))\n"
+            f"_obj.addConstraint(Sketcher.Constraint('Coincident', _gi + {sides - 1}, 2, _gi, 1))\n"
+        )
+    elif gtype == "ellipse":
+        cx = geom.get("cx", 0)
+        cy = geom.get("cy", 0)
+        rmaj = geom.get("radius_major", 10)
+        rmin = geom.get("radius_minor", 5)
+        rotation = geom.get("rotation", 0)
+        return (
+            f"_obj.addGeometry(Part.Ellipse("
+            f"FreeCAD.Vector({cx},{cy},0), "
+            f"{rmaj}, {rmin}))\n"
         )
     return f"# Unknown sketch geometry: {gtype}\n"
 
@@ -463,7 +588,9 @@ def _sketch_constraint_to_script(con: dict[str, Any]) -> str:
             return f"_obj.addConstraint(Sketcher.Constraint('Distance', {geom}, {value}))\n"
     elif ctype == "Radius":
         if value is not None:
-            return f"_obj.addConstraint(Sketcher.Constraint('Radius', {geom}, {value}))\n"
+            return (
+                f"_obj.addConstraint(Sketcher.Constraint('Radius', {geom}, {value}))\n"
+            )
     elif ctype == "Coincident":
         g2 = con.get("geometry2", 0)
         p1 = con.get("point1", 1)
@@ -474,14 +601,19 @@ def _sketch_constraint_to_script(con: dict[str, Any]) -> str:
         return f"_obj.addConstraint(Sketcher.Constraint('Parallel', {geom}, {g2}))\n"
     elif ctype == "Perpendicular":
         g2 = con.get("geometry2", 0)
-        return f"_obj.addConstraint(Sketcher.Constraint('Perpendicular', {geom}, {g2}))\n"
+        return (
+            f"_obj.addConstraint(Sketcher.Constraint('Perpendicular', {geom}, {g2}))\n"
+        )
     elif ctype == "Equal":
         g2 = con.get("geometry2", 0)
         return f"_obj.addConstraint(Sketcher.Constraint('Equal', {geom}, {g2}))\n"
     elif ctype == "Angle":
         if value is not None:
             import math
+
             val_rad = math.radians(value)
-            return f"_obj.addConstraint(Sketcher.Constraint('Angle', {geom}, {val_rad}))\n"
+            return (
+                f"_obj.addConstraint(Sketcher.Constraint('Angle', {geom}, {val_rad}))\n"
+            )
 
     return f"# Unknown constraint: {ctype}\n"
