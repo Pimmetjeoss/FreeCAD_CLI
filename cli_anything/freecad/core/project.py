@@ -272,6 +272,20 @@ def _object_to_script(obj: dict[str, Any]) -> str:
             f"_obj.Radius1 = {r1}\n"
             f"_obj.Radius2 = {r2}\n"
         ) + _placement_script(params)
+    elif obj_type == "Part::Helix":
+        radius = params.get("radius", 5)
+        pitch = params.get("pitch", 3)
+        height = params.get("height", 10)
+        angle = params.get("angle", 0)
+        ccw = params.get("ccw", True)
+        return (
+            f"_obj = doc.addObject('Part::Helix', {name!r})\n"
+            f"_obj.Radius = {radius}\n"
+            f"_obj.Pitch = {pitch}\n"
+            f"_obj.Height = {height}\n"
+            f"_obj.Angle = {angle}\n"
+            f"_obj.CCW = {1 if ccw else 0}\n"
+        ) + _placement_script(params)
     elif obj_type == "Part::Fuse":
         base = params.get("base")
         tool = params.get("tool")
@@ -582,11 +596,15 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
     if gtype == "line":
         x1, y1 = geom.get("x1", 0), geom.get("y1", 0)
         x2, y2 = geom.get("x2", 10), geom.get("y2", 0)
-        return (
+        construction = geom.get("construction", False)
+        script = (
             f"_obj.addGeometry(Part.LineSegment("
             f"FreeCAD.Vector({x1},{y1},0), "
             f"FreeCAD.Vector({x2},{y2},0)))\n"
         )
+        if construction:
+            script += f"_obj.setConstruction(_obj.GeometryCount - 1, True)\n"
+        return script
     elif gtype == "circle":
         cx, cy = geom.get("cx", 0), geom.get("cy", 0)
         r = geom.get("radius", 5)
@@ -740,5 +758,16 @@ def _sketch_constraint_to_script(con: dict[str, Any]) -> str:
             return (
                 f"_obj.addConstraint(Sketcher.Constraint('Angle', {geom}, {val_rad}))\n"
             )
+    elif ctype == "Tangent":
+        g2 = con.get("geometry2", 0)
+        return f"_obj.addConstraint(Sketcher.Constraint('Tangent', {geom}, {g2}))\n"
+    elif ctype == "Symmetric":
+        g2 = con.get("geometry2", 0)
+        # Symmetric constraint between two geometries about a line
+        # For now, simplified version - full implementation would need symmetry axis
+        return (
+            f"# Symmetric constraint - requires axis definition\n"
+            f"_obj.addConstraint(Sketcher.Constraint('Symmetric', {geom}, 1, {g2}, 1))\n"
+        )
 
     return f"# Unknown constraint: {ctype}\n"

@@ -364,6 +364,108 @@ def part_torus(
     _output(obj, f"Created torus '{name}' (R={radius1}, r={radius2}){pos_str}")
 
 
+@part.command("helix")
+@click.option("-r", "--radius", type=float, default=5.0, help="Helix radius")
+@click.option("-p", "--pitch", type=float, default=3.0, help="Helix pitch (height per turn)")
+@click.option("-h", "--height", type=float, default=10.0, help="Total helix height")
+@click.option("--angle", type=float, default=0.0, help="Conical angle (0 = cylindrical)")
+@click.option("--ccw/--cw", default=True, help="Counter-clockwise (default) or clockwise")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_helix(
+    radius: float, pitch: float, height: float, angle: float, ccw: bool, name: str | None
+) -> None:
+    """Create a helix primitive (for springs, screw threads, coils)."""
+    _ensure_project()
+    name = name or _next_name("Helix")
+    obj = {
+        "name": name,
+        "type": "Part::Helix",
+        "label": name,
+        "params": {
+            "radius": radius,
+            "pitch": pitch,
+            "height": height,
+            "angle": angle,
+            "ccw": ccw,
+        },
+    }
+    _session.add_object(obj, f"add helix '{name}'")
+    _output(
+        obj,
+        f"Created helix '{name}' (r={radius}mm, pitch={pitch}mm, height={height}mm, angle={angle}°)",
+    )
+
+
+@part.command("import-dxf")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("-n", "--name", default=None, help="Object name")
+@click.option("-u", "--units", "target_units", default="mm", help="Target units")
+@click.option("-l", "--layers", default=None, help="Comma-separated layer filter")
+@click.option("-s", "--scale", "scale_factor", type=float, default=1.0, help="Scale factor")
+def part_import_dxf(
+    filepath: str, name: str | None, target_units: str, layers: str | None, scale_factor: float
+) -> None:
+    """Import DXF file as Part geometry (for laser cutting workflows)."""
+    _ensure_project()
+    filepath = os.path.abspath(filepath)
+    name = name or _next_name("DXF")
+    
+    # Parse layer filter
+    layer_filter = None
+    if layers:
+        layer_filter = [layer.strip() for layer in layers.split(",")]
+    
+    from cli_anything.freecad.core.dxf_import import import_dxf
+    
+    result = import_dxf(
+        filepath=filepath,
+        name=name,
+        target_units=target_units,
+        layer_filter=layer_filter,
+        scale_factor=scale_factor,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        objects_created = r.get("objects_created", 0)
+        layers_found = r.get("layers_found", [])
+        object_names = r.get("object_names", [])
+        
+        # Add each object to session
+        for obj_name in object_names:
+            obj = {
+                "name": obj_name,
+                "type": "Part::Feature",
+                "label": obj_name,
+                "params": {
+                    "source": "dxf_import",
+                    "filepath": filepath,
+                    "units": target_units,
+                    "scale": scale_factor,
+                },
+            }
+            _session.add_object(obj, f"import DXF layer to '{obj_name}'")
+        
+        _output(
+            {
+                "success": True,
+                "objects_created": objects_created,
+                "layers_found": layers_found,
+                "object_names": object_names,
+                "total_length": r.get("total_length", 0),
+                "total_area": r.get("total_area", 0),
+            },
+            f"Imported DXF: {objects_created} objects from {filepath} "
+            f"(layers: {', '.join(layers_found)})",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "DXF import failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 @part.command("fuse")
 @click.argument("base")
 @click.argument("tool")
@@ -1071,6 +1173,25 @@ def sketch_line(sketch_name: str, x1: float, y1: float, x2: float, y2: float) ->
     sketch_obj["params"]["geometry"].append(geom)
     _session._auto_save()
     _output(geom, f"Added line ({x1},{y1}) -> ({x2},{y2}) to '{sketch_name}'")
+
+
+@sketch.command("construction-line")
+@click.argument("sketch_name")
+@click.option("--x1", type=float, default=0, help="Start X")
+@click.option("--y1", type=float, default=0, help="Start Y")
+@click.option("--x2", type=float, default=10, help="End X")
+@click.option("--y2", type=float, default=0, help="End Y")
+def sketch_construction_line(sketch_name: str, x1: float, y1: float, x2: float, y2: float) -> None:
+    """Add a construction line (helper/guide line) to a sketch."""
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    _session.checkpoint(f"add construction line to '{sketch_name}'")
+    geom = {"type": "line", "x1": x1, "y1": y1, "x2": x2, "y2": y2, "construction": True}
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added construction line ({x1},{y1}) -> ({x2},{y2}) to '{sketch_name}'")
 
 
 @sketch.command("circle")
@@ -3668,10 +3789,12 @@ def repl(ctx: click.Context, project_path: str | None) -> None:
         "part remove <name>": "Remove object",
         "sketch new [-p XY|XZ|YZ]": "New sketch",
         "sketch line <sketch> [--x1/y1/x2/y2]": "Add line",
+        "sketch construction-line <sketch> [--x1/y1/x2/y2]": "Add construction line",
         "sketch circle <sketch> [-r]": "Add circle",
         "sketch rect <sketch> [-w/-H]": "Add rectangle",
         "sketch arc <sketch> [-r]": "Add arc",
-        "sketch constrain <sketch> -t TYPE": "Add constraint",
+        "sketch constrain <sketch> -t TYPE": "Add constraint (Distance, Coincident, Parallel, Perpendicular, Angle, Tangent, Symmetric)",
+        "part helix [-r RADIUS] [-p PITCH] [-h HEIGHT]": "Create helix (springs, threads)",
         "sketch list <sketch>": "List sketch geometry",
         "dxf-import <file> [-n NAME] [-u UNITS] [-l LAYERS]": "Import DXF for laser cutting",
         "dxf-info <file>": "Analyze DXF file (layers, entities, bounds)",
