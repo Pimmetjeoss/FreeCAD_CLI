@@ -4067,6 +4067,236 @@ def techdraw_export_pdf(page_name: str, output_path: str, overwrite: bool) -> No
             raise click.ClickException(err)
 
 
+@techdraw.command("bom")
+@click.argument("page_name")
+@click.option("-o", "--objects", default=None, help="Comma-separated object names to include")
+@click.option("-t", "--template", type=click.Choice(["default", "detailed", "minimal"]), default="default", help="BOM template style")
+@click.option("--name", default=None, help="BOM name")
+def techdraw_bom(
+    page_name: str, objects: str | None, template: str, name: str | None
+) -> None:
+    """Create a Bill of Materials table on a TechDraw page."""
+    _ensure_project()
+    
+    # Parse object filter
+    object_list = None
+    if objects:
+        object_list = [obj.strip() for obj in objects.split(",")]
+    
+    from cli_anything.freecad.core.techdraw_documentation import create_bom
+    
+    result = create_bom(
+        page_name=page_name,
+        objects=object_list,
+        template=template,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Spreadsheet::Sheet",
+            "label": name or r.get("object_name"),
+            "params": {
+                "page": r.get("page_name"),
+                "template": r.get("template"),
+                "item_count": r.get("item_count"),
+                "rows": r.get("rows"),
+            },
+        }
+        _session.add_object(obj, f"create BOM '{name or r.get('object_name')}' on '{page_name}'")
+        _output(
+            obj,
+            f"Created BOM: {name or r.get('object_name')} "
+            f"({r.get('rows', 0)} items, template={r.get('template')})",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "BOM creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@techdraw.command("balloon")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-x", type=float, default=50.0, help="X position (mm)")
+@click.option("-y", type=float, default=50.0, help="Y position (mm)")
+@click.option("-t", "--text", default="1", help="Balloon text/number")
+@click.option("-s", "--symbol", type=click.Choice(["circle", "square", "triangle"]), default="circle", help="Balloon symbol")
+@click.option("--name", default=None, help="Balloon name")
+def techdraw_balloon(
+    page_name: str, view_name: str, x: float, y: float, text: str, symbol: str, name: str | None
+) -> None:
+    """Add a balloon callout to a TechDraw view for part identification."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.techdraw_documentation import add_balloon
+    
+    result = add_balloon(
+        page_name=page_name,
+        view_name=view_name,
+        x=x,
+        y=y,
+        text=text,
+        symbol=symbol,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "TechDraw::DrawViewBalloon",
+            "label": name or r.get("object_name"),
+            "params": {
+                "page": r.get("page_name"),
+                "view": r.get("view_name"),
+                "x": r.get("x"),
+                "y": r.get("y"),
+                "text": r.get("text"),
+                "symbol": r.get("symbol"),
+            },
+        }
+        _session.add_object(obj, f"create balloon '{name or r.get('object_name')}' on '{view_name}'")
+        _output(
+            obj,
+            f"Created Balloon: {name or r.get('object_name')} "
+            f"('{r.get('text')}' at ({r.get('x')}, {r.get('y')}))",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Balloon creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@techdraw.command("auto-balloon")
+@click.argument("page_name")
+@click.argument("view_name")
+@click.option("-n", "--start-number", type=int, default=1, help="Starting number")
+@click.option("-s", "--symbol", type=click.Choice(["circle", "square", "triangle"]), default="circle", help="Balloon symbol")
+@click.option("--spacing", type=float, default=20.0, help="Spacing between balloons (mm)")
+def techdraw_auto_balloon(
+    page_name: str, view_name: str, start_number: int, symbol: str, spacing: float
+) -> None:
+    """Automatically add numbered balloons to all parts in a view."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.techdraw_documentation import auto_balloon
+    
+    result = auto_balloon(
+        page_name=page_name,
+        view_name=view_name,
+        start_number=start_number,
+        symbol=symbol,
+        spacing=spacing,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        balloons_created = r.get("balloons_created", [])
+        
+        # Add all balloons to session
+        for balloon in balloons_created:
+            obj = {
+                "name": balloon.get("name"),
+                "type": "TechDraw::DrawViewBalloon",
+                "label": balloon.get("name"),
+                "params": {
+                    "page": r.get("page_name"),
+                    "view": r.get("view_name"),
+                    "number": balloon.get("number"),
+                    "x": balloon.get("x"),
+                    "y": balloon.get("y"),
+                    "object": balloon.get("object"),
+                },
+            }
+            _session.add_object(obj, f"create balloon '{balloon.get('name')}' on '{view_name}'")
+        
+        _output(
+            {
+                "success": True,
+                "page_name": r.get("page_name"),
+                "view_name": r.get("view_name"),
+                "balloons_created": balloons_created,
+                "total_balloons": r.get("total_balloons"),
+                "number_range": f"{r.get('start_number')}-{r.get('end_number')}",
+                "symbol": r.get("symbol"),
+            },
+            f"Created {r.get('total_balloons', 0)} balloons "
+            f"(numbers {r.get('start_number')}-{r.get('end_number')})",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Auto-balloon failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@techdraw.command("documentation")
+@click.argument("page_name")
+def techdraw_documentation(page_name: str) -> None:
+    """List all BOMs and balloons on a TechDraw page."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.techdraw_documentation import bom_balloon_info
+    
+    result = bom_balloon_info(page_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        boms = r.get("boms", [])
+        balloons = r.get("balloons", [])
+        
+        _output(
+            {
+                "success": True,
+                "page_name": r.get("page_name"),
+                "boms": boms,
+                "balloons": balloons,
+                "bom_count": r.get("bom_count", 0),
+                "balloon_count": r.get("balloon_count", 0),
+            },
+            f"Page '{page_name}' has {r.get('bom_count', 0)} BOMs and {r.get('balloon_count', 0)} balloons",
+        )
+        
+        if not _json_mode:
+            if boms:
+                click.echo("BOMs:")
+                for bom in boms:
+                    details = []
+                    if bom.get('rows'):
+                        details.append(f"rows: {bom['rows']}")
+                    if bom.get('columns'):
+                        details.append(f"columns: {bom['columns']}")
+                    details_str = f" ({', '.join(details)})" if details else ""
+                    click.echo(f"  {bom['name']}: {bom['type']}{details_str}")
+            
+            if balloons:
+                click.echo("Balloons:")
+                for balloon in balloons:
+                    details = []
+                    if balloon.get('text'):
+                        details.append(f"text: '{balloon['text']}'")
+                    if balloon.get('x') is not None and balloon.get('y') is not None:
+                        details.append(f"pos: ({balloon['x']}, {balloon['y']})")
+                    if balloon.get('symbol'):
+                        details.append(f"symbol: {balloon['symbol']}")
+                    details_str = f" ({', '.join(details)})" if details else ""
+                    click.echo(f"  {balloon['name']}: {balloon['type']}{details_str}")
+    else:
+        err = result.get("error", "Documentation info failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Session commands ─────────────────────────────────────────────────
 
 
