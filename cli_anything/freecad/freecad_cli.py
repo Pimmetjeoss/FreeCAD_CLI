@@ -1424,6 +1424,212 @@ def sketch_offset(sketch_name: str, geom_idx: int, distance: float) -> None:
     _output(geom, f"Added offset (d={distance}) to geometry {geom_idx} in '{sketch_name}'")
 
 
+# ── PartDesign commands ──────────────────────────────────────────────
+
+
+@cli.group()
+def partdesign() -> None:
+    """Parametric PartDesign commands (Pad, Pocket, Body)."""
+    pass
+
+
+@partdesign.command("body")
+@click.option("-n", "--name", default=None, help="Body name")
+@click.option("-f", "--base-feature", default=None, help="Base feature name")
+def partdesign_body(name: str | None, base_feature: str | None) -> None:
+    """Create a PartDesign::Body container for parametric modeling."""
+    _ensure_project()
+    name = name or _next_name("Body")
+    
+    from cli_anything.freecad.core.partdesign import body_create
+    
+    result = body_create(name=name, base_feature=base_feature)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Body",
+            "label": name,
+            "params": {"base_feature": base_feature},
+        }
+        _session.add_object(obj, f"create body '{name}'")
+        _output(obj, f"Created PartDesign Body: {name}")
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Body creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("pad")
+@click.argument("sketch_name")
+@click.option("-n", "--name", default=None, help="Pad name")
+@click.option("-l", "--length", type=float, default=10.0, help="Extrusion length (mm)")
+@click.option("--symmetric", is_flag=True, help="Symmetric extrusion")
+@click.option("--reverse", is_flag=True, help="Reverse direction")
+@click.option("--up-to-face", default=None, help="Extrude up to face")
+def partdesign_pad(
+    sketch_name: str,
+    name: str | None,
+    length: float,
+    symmetric: bool,
+    reverse: bool,
+    up_to_face: str | None,
+) -> None:
+    """Create a parametric pad (extrusion) from a sketch."""
+    _ensure_project()
+    name = name or _next_name("Pad")
+    
+    # Verify sketch exists
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj:
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    
+    from cli_anything.freecad.core.partdesign import pad
+    
+    result = pad(
+        sketch_name=sketch_name,
+        name=name,
+        length=length,
+        symmetric=symmetric,
+        reverse=reverse,
+        up_to_face=up_to_face,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Pad",
+            "label": name,
+            "params": {
+                "sketch": sketch_name,
+                "length": r.get("length"),
+                "symmetric": r.get("symmetric"),
+                "reversed": r.get("reversed"),
+            },
+        }
+        _session.add_object(obj, f"create pad '{name}' from '{sketch_name}'")
+        _output(
+            obj,
+            f"Created Pad: {name} (length={r.get('length', length)}mm, volume={r.get('volume', 0):.2f}mm³)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Pad creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("pocket")
+@click.argument("sketch_name")
+@click.option("-n", "--name", default=None, help="Pocket name")
+@click.option("-l", "--length", type=float, default=10.0, help="Cut depth (mm)")
+@click.option("--through-all", is_flag=True, help="Cut through all")
+@click.option("--symmetric", is_flag=True, help="Symmetric cut")
+@click.option("--reverse", is_flag=True, help="Reverse direction")
+@click.option("--up-to-face", default=None, help="Cut up to face")
+def partdesign_pocket(
+    sketch_name: str,
+    name: str | None,
+    length: float,
+    through_all: bool,
+    symmetric: bool,
+    reverse: bool,
+    up_to_face: str | None,
+) -> None:
+    """Create a parametric pocket (cutout) from a sketch."""
+    _ensure_project()
+    name = name or _next_name("Pocket")
+    
+    # Verify sketch exists
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj:
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    
+    # Determine pocket type
+    pocket_type = "ThroughAll" if through_all else ("UpToFace" if up_to_face else "Length")
+    
+    from cli_anything.freecad.core.partdesign import pocket
+    
+    result = pocket(
+        sketch_name=sketch_name,
+        name=name,
+        length=length,
+        symmetric=symmetric,
+        reverse=reverse,
+        up_to_face=up_to_face,
+        pocket_type=pocket_type,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Pocket",
+            "label": name,
+            "params": {
+                "sketch": sketch_name,
+                "type": r.get("type"),
+                "length": r.get("length"),
+                "symmetric": r.get("symmetric"),
+                "reversed": r.get("reversed"),
+            },
+        }
+        _session.add_object(obj, f"create pocket '{name}' from '{sketch_name}'")
+        _output(
+            obj,
+            f"Created Pocket: {name} (type={r.get('type')}, volume_removed={r.get('volume_removed', 0):.2f}mm³)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Pocket creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("features")
+@click.argument("body_name")
+def partdesign_features(body_name: str) -> None:
+    """List features in a PartDesign body."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.partdesign import feature_list
+    
+    result = feature_list(body_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        features = r.get("features", [])
+        _output(
+            {
+                "success": True,
+                "body_name": r.get("body_name"),
+                "features": features,
+                "feature_count": r.get("feature_count", 0),
+                "volume": r.get("volume"),
+                "area": r.get("area"),
+                "is_valid": r.get("is_valid"),
+            },
+            f"Body '{body_name}' has {r.get('feature_count', 0)} features",
+        )
+        if not _json_mode:
+            for feature in features:
+                sketch_info = f" (sketch: {feature.get('sketch')})" if feature.get('sketch') else ""
+                length_info = f" (length: {feature.get('length')}mm)" if feature.get('length') else ""
+                click.echo(f"  {feature['name']}: {feature['type']}{sketch_info}{length_info}")
+    else:
+        err = result.get("error", "Feature list failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Mesh commands ────────────────────────────────────────────────────
 
 
@@ -1645,6 +1851,96 @@ def validate_lasercut(
         click.echo("\n".join(lines))
 
 
+@cli.command("dxf-import")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("-n", "--name", default=None, help="Object name")
+@click.option("-u", "--units", "target_units", default="mm", help="Target units (mm, cm, inch)")
+@click.option("-l", "--layers", default=None, help="Comma-separated layer names to import")
+@click.option("-s", "--scale", "scale_factor", type=float, default=1.0, help="Scale factor")
+def dxf_import(
+    filepath: str,
+    name: str | None,
+    target_units: str,
+    layers: str | None,
+    scale_factor: float,
+) -> None:
+    """Import a DXF file (2D profiles) for laser cutting and manufacturing."""
+    _ensure_project()
+    filepath = os.path.abspath(filepath)
+    
+    # Parse layer filter
+    layer_filter = None
+    if layers:
+        layer_filter = [layer.strip() for layer in layers.split(",")]
+    
+    from cli_anything.freecad.core.dxf_import import import_dxf
+    
+    result = import_dxf(
+        filepath=filepath,
+        name=name,
+        target_units=target_units,
+        layer_filter=layer_filter,
+        scale_factor=scale_factor,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        _output(
+            {
+                "success": True,
+                "objects_created": r.get("objects_created", 0),
+                "layers_found": r.get("layers_found", []),
+                "object_names": r.get("object_names", []),
+                "total_length": r.get("total_length", 0),
+                "total_area": r.get("total_area", 0),
+                "units": r.get("units"),
+                "scale_factor": r.get("scale_factor"),
+            },
+            f"Imported DXF: {r.get('objects_created', 0)} objects from {filepath} "
+            f"(layers: {', '.join(r.get('layers_found', []))})",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "DXF import failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@cli.command("dxf-info")
+@click.argument("filepath", type=click.Path(exists=True))
+def dxf_info(filepath: str) -> None:
+    """Analyze a DXF file without importing (shows layers, entities, bounds)."""
+    filepath = os.path.abspath(filepath)
+    
+    from cli_anything.freecad.core.dxf_import import analyze_dxf
+    
+    result = analyze_dxf(filepath)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        _output(
+            {
+                "success": True,
+                "filename": r.get("filename"),
+                "total_entities": r.get("total_entities", 0),
+                "entity_types": r.get("entity_types", {}),
+                "layers": r.get("layers", []),
+                "units": r.get("units"),
+                "bounds": r.get("bounds"),
+                "has_geometry": r.get("has_geometry", False),
+            },
+            f"DXF Analysis: {r.get('total_entities', 0)} entities, "
+            f"layers: {', '.join(r.get('layers', []))}, units: {r.get('units', 'unknown')}",
+        )
+    else:
+        err = result.get("error", "DXF analysis failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Export commands ──────────────────────────────────────────────────
 
 
@@ -1704,7 +2000,7 @@ def export_formats() -> None:
 
 
 # Convenience export shortcuts
-for _fmt in ["step", "stl", "obj", "iges", "brep", "dxf"]:
+for _fmt in ["step", "stl", "obj", "iges", "brep", "dxf", "3mf"]:
 
     def _make_export_cmd(fmt_name):
         @export.command(fmt_name)
@@ -3377,6 +3673,12 @@ def repl(ctx: click.Context, project_path: str | None) -> None:
         "sketch arc <sketch> [-r]": "Add arc",
         "sketch constrain <sketch> -t TYPE": "Add constraint",
         "sketch list <sketch>": "List sketch geometry",
+        "dxf-import <file> [-n NAME] [-u UNITS] [-l LAYERS]": "Import DXF for laser cutting",
+        "dxf-info <file>": "Analyze DXF file (layers, entities, bounds)",
+        "partdesign body [-n NAME] [-f FEATURE]": "Create PartDesign body",
+        "partdesign pad <sketch> [-l LENGTH] [--symmetric]": "Extrude sketch to solid",
+        "partdesign pocket <sketch> [-l DEPTH] [--through-all]": "Cut sketch from solid",
+        "partdesign features <body>": "List body features",
         "mesh import <file>": "Import mesh",
         "techdraw page [-t TEMPLATE]": "Create drawing page",
         "techdraw view <page> <source> [-d DIR]": "Add 2D view",

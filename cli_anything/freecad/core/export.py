@@ -21,6 +21,7 @@ EXPORT_FORMATS = {
     "obj": {"extensions": [".obj"], "description": "Wavefront OBJ mesh"},
     "brep": {"extensions": [".brep", ".brp"], "description": "OpenCASCADE BREP"},
     "fcstd": {"extensions": [".fcstd"], "description": "FreeCAD native"},
+    "3mf": {"extensions": [".3mf"], "description": "3D Manufacturing Format (with metadata)"},
     "dxf": {"extensions": [".dxf"], "description": "DXF (TechDraw 2D)"},
     "svg": {"extensions": [".svg"], "description": "SVG (TechDraw 2D)"},
     "pdf": {"extensions": [".pdf"], "description": "PDF (TechDraw 2D)"},
