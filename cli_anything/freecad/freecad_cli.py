@@ -1743,8 +1743,216 @@ def partdesign_features(body_name: str) -> None:
                 sketch_info = f" (sketch: {feature.get('sketch')})" if feature.get('sketch') else ""
                 length_info = f" (length: {feature.get('length')}mm)" if feature.get('length') else ""
                 click.echo(f"  {feature['name']}: {feature['type']}{sketch_info}{length_info}")
+
+
+@partdesign.command("linear-pattern")
+@click.argument("feature_name")
+@click.option("-d", "--direction", type=click.Choice(["X", "Y", "Z"]), default="X", help="Pattern direction")
+@click.option("-l", "--length", type=float, default=20.0, help="Total pattern length (mm)")
+@click.option("-n", "--occurrences", type=int, default=2, help="Number of instances")
+@click.option("--name", default=None, help="Pattern name")
+def partdesign_linear_pattern(
+    feature_name: str, direction: str, length: float, occurrences: int, name: str | None
+) -> None:
+    """Create a linear pattern of a PartDesign feature (arrays of holes, slots)."""
+    _ensure_project()
+    
+    # Verify feature exists
+    feature_obj = _session.get_object(feature_name)
+    if not feature_obj:
+        raise click.ClickException(f"Feature not found: {feature_name}")
+    
+    from cli_anything.freecad.core.partdesign_patterns import linear_pattern
+    
+    result = linear_pattern(
+        feature_name=feature_name,
+        direction=direction,
+        length=length,
+        occurrences=occurrences,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::LinearPattern",
+            "label": name or r.get("object_name"),
+            "params": {
+                "feature": feature_name,
+                "direction": r.get("direction"),
+                "length": r.get("length"),
+                "occurrences": r.get("occurrences"),
+                "spacing": r.get("spacing"),
+            },
+        }
+        _session.add_object(obj, f"create linear pattern '{name or r.get('object_name')}' of '{feature_name}'")
+        _output(
+            obj,
+            f"Created Linear Pattern: {name or r.get('object_name')} "
+            f"({r.get('occurrences')} instances, {r.get('spacing'):.2f}mm spacing)",
+        )
     else:
-        err = result.get("error", "Feature list failed")
+        err = result.get("error", result.get("result", {}).get("error", "Linear pattern failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("polar-pattern")
+@click.argument("feature_name")
+@click.option("-a", "--axis", type=click.Choice(["X", "Y", "Z"]), default="Z", help="Rotation axis")
+@click.option("--angle", type=float, default=360.0, help="Total angle (degrees)")
+@click.option("-n", "--occurrences", type=int, default=6, help="Number of instances")
+@click.option("--reverse", is_flag=True, help="Reverse direction")
+@click.option("--name", default=None, help="Pattern name")
+def partdesign_polar_pattern(
+    feature_name: str, axis: str, angle: float, occurrences: int, reverse: bool, name: str | None
+) -> None:
+    """Create a polar pattern of a PartDesign feature (bolt circles, radial features)."""
+    _ensure_project()
+    
+    # Verify feature exists
+    feature_obj = _session.get_object(feature_name)
+    if not feature_obj:
+        raise click.ClickException(f"Feature not found: {feature_name}")
+    
+    from cli_anything.freecad.core.partdesign_patterns import polar_pattern
+    
+    result = polar_pattern(
+        feature_name=feature_name,
+        axis=axis,
+        angle=angle,
+        occurrences=occurrences,
+        reverse=reverse,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::PolarPattern",
+            "label": name or r.get("object_name"),
+            "params": {
+                "feature": feature_name,
+                "axis": r.get("axis"),
+                "angle": r.get("angle"),
+                "occurrences": r.get("occurrences"),
+                "angular_spacing": r.get("angular_spacing"),
+                "reversed": r.get("reversed"),
+            },
+        }
+        _session.add_object(obj, f"create polar pattern '{name or r.get('object_name')}' of '{feature_name}'")
+        _output(
+            obj,
+            f"Created Polar Pattern: {name or r.get('object_name')} "
+            f"({r.get('occurrences')} instances, {r.get('angular_spacing'):.2f}° spacing)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Polar pattern failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("draft")
+@click.argument("face_name")
+@click.option("-a", "--angle", type=float, default=3.0, help="Draft angle (degrees)")
+@click.option("--neutral-plane", default=None, help="Neutral plane name")
+@click.option("--reverse", is_flag=True, help="Reverse draft direction")
+@click.option("--name", default=None, help="Draft name")
+def partdesign_draft(
+    face_name: str, angle: float, neutral_plane: str | None, reverse: bool, name: str | None
+) -> None:
+    """Apply draft angle to faces (for casting/molding manufacturing)."""
+    _ensure_project()
+    
+    # Verify face exists
+    face_obj = _session.get_object(face_name)
+    if not face_obj:
+        raise click.ClickException(f"Face not found: {face_name}")
+    
+    from cli_anything.freecad.core.partdesign_patterns import draft
+    
+    result = draft(
+        face_name=face_name,
+        angle=angle,
+        neutral_plane=neutral_plane,
+        reverse=reverse,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Draft",
+            "label": name or r.get("object_name"),
+            "params": {
+                "face": face_name,
+                "angle": r.get("angle"),
+                "angle_rad": r.get("angle_rad"),
+                "neutral_plane": r.get("neutral_plane"),
+                "reversed": r.get("reversed"),
+            },
+        }
+        _session.add_object(obj, f"create draft '{name or r.get('object_name')}' on '{face_name}'")
+        _output(
+            obj,
+            f"Created Draft: {name or r.get('object_name')} "
+            f"(angle={r.get('angle')}°, reversed={r.get('reversed')})",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Draft failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("patterns")
+@click.argument("body_name")
+def partdesign_patterns(body_name: str) -> None:
+    """List all patterns in a PartDesign body."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.partdesign_patterns import feature_pattern_info
+    
+    result = feature_pattern_info(body_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        patterns = r.get("patterns", [])
+        _output(
+            {
+                "success": True,
+                "body_name": r.get("body_name"),
+                "patterns": patterns,
+                "pattern_count": r.get("pattern_count", 0),
+            },
+            f"Body '{body_name}' has {r.get('pattern_count', 0)} patterns",
+        )
+        if not _json_mode:
+            for pattern in patterns:
+                details = []
+                if pattern.get('occurrences'):
+                    details.append(f"instances: {pattern['occurrences']}")
+                if pattern.get('length'):
+                    details.append(f"length: {pattern['length']}mm")
+                if pattern.get('angle'):
+                    details.append(f"angle: {pattern['angle']}°")
+                if pattern.get('direction'):
+                    details.append(f"direction: {pattern['direction']}")
+                if pattern.get('axis'):
+                    details.append(f"axis: {pattern['axis']}")
+                
+                details_str = f" ({', '.join(details)})" if details else ""
+                click.echo(f"  {pattern['name']}: {pattern['type']}{details_str}")
+    else:
+        err = result.get("error", "Pattern list failed")
         if _json_mode:
             _output({"success": False, "error": err})
         else:
