@@ -1959,6 +1959,197 @@ def partdesign_patterns(body_name: str) -> None:
             raise click.ClickException(err)
 
 
+@partdesign.command("fillet")
+@click.argument("edge_name")
+@click.option("-r", "--radius", type=float, default=1.0, help="Fillet radius (mm)")
+@click.option("--name", default=None, help="Fillet name")
+def partdesign_fillet(edge_name: str, radius: float, name: str | None) -> None:
+    """Apply fillet (round) to edges for manufacturing edge breaks."""
+    _ensure_project()
+    
+    # Verify edge exists
+    edge_obj = _session.get_object(edge_name)
+    if not edge_obj:
+        raise click.ClickException(f"Edge not found: {edge_name}")
+    
+    from cli_anything.freecad.core.partdesign_manufacturing import partdesign_fillet
+    
+    result = partdesign_fillet(
+        edge_name=edge_name,
+        radius=radius,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Fillet",
+            "label": name or r.get("object_name"),
+            "params": {
+                "edge": edge_name,
+                "radius": r.get("radius"),
+            },
+        }
+        _session.add_object(obj, f"create fillet '{name or r.get('object_name')}' on '{edge_name}'")
+        _output(
+            obj,
+            f"Created Fillet: {name or r.get('object_name')} "
+            f"(radius={r.get('radius')}mm, volume={r.get('volume', 0):.2f}mm³)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Fillet failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("chamfer")
+@click.argument("edge_name")
+@click.option("-s", "--size", type=float, default=1.0, help="Chamfer size (mm)")
+@click.option("-a", "--angle", type=float, default=45.0, help="Chamfer angle (degrees)")
+@click.option("--name", default=None, help="Chamfer name")
+def partdesign_chamfer(edge_name: str, size: float, angle: float, name: str | None) -> None:
+    """Apply chamfer to edges for manufacturing deburring and clearance."""
+    _ensure_project()
+    
+    # Verify edge exists
+    edge_obj = _session.get_object(edge_name)
+    if not edge_obj:
+        raise click.ClickException(f"Edge not found: {edge_name}")
+    
+    from cli_anything.freecad.core.partdesign_manufacturing import partdesign_chamfer
+    
+    result = partdesign_chamfer(
+        edge_name=edge_name,
+        size=size,
+        angle=angle,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Chamfer",
+            "label": name or r.get("object_name"),
+            "params": {
+                "edge": edge_name,
+                "size": r.get("size"),
+                "angle": r.get("angle"),
+            },
+        }
+        _session.add_object(obj, f"create chamfer '{name or r.get('object_name')}' on '{edge_name}'")
+        _output(
+            obj,
+            f"Created Chamfer: {name or r.get('object_name')} "
+            f"(size={r.get('size')}mm, angle={r.get('angle')}°, volume={r.get('volume', 0):.2f}mm³)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Chamfer failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("thickness")
+@click.argument("face_name")
+@click.option("-t", "--thickness", type=float, default=2.0, help="Wall thickness (mm)")
+@click.option("-m", "--mode", type=click.Choice(["thickness", "offset", "skin"]), default="thickness", help="Thickness mode")
+@click.option("-j", "--join", type=click.Choice(["arc", "intersection"]), default="arc", help="Corner join type")
+@click.option("--name", default=None, help="Thickness name")
+def partdesign_thickness(
+    face_name: str, thickness: float, mode: str, join: str, name: str | None
+) -> None:
+    """Create shell structure with wall thickness (for sheet metal, enclosures)."""
+    _ensure_project()
+    
+    # Verify face exists
+    face_obj = _session.get_object(face_name)
+    if not face_obj:
+        raise click.ClickException(f"Face not found: {face_name}")
+    
+    from cli_anything.freecad.core.partdesign_manufacturing import partdesign_thickness
+    
+    result = partdesign_thickness(
+        face_name=face_name,
+        thickness=thickness,
+        mode=mode,
+        join=join,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "PartDesign::Thickness",
+            "label": name or r.get("object_name"),
+            "params": {
+                "face": face_name,
+                "thickness": r.get("thickness"),
+                "mode": r.get("mode"),
+                "join": r.get("join"),
+            },
+        }
+        _session.add_object(obj, f"create thickness '{name or r.get('object_name')}' on '{face_name}'")
+        _output(
+            obj,
+            f"Created Thickness: {name or r.get('object_name')} "
+            f"(thickness={r.get('thickness')}mm, mode={r.get('mode')}, volume={r.get('volume', 0):.2f}mm³)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Thickness failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@partdesign.command("edge-treatments")
+@click.argument("body_name")
+def partdesign_edge_treatments(body_name: str) -> None:
+    """List all fillets and chamfers in a PartDesign body."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.partdesign_manufacturing import partdesign_fillet_chamfer_info
+    
+    result = partdesign_fillet_chamfer_info(body_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        treatments = r.get("edge_treatments", [])
+        _output(
+            {
+                "success": True,
+                "body_name": r.get("body_name"),
+                "edge_treatments": treatments,
+                "treatment_count": r.get("treatment_count", 0),
+            },
+            f"Body '{body_name}' has {r.get('treatment_count', 0)} edge treatments",
+        )
+        if not _json_mode:
+            for treatment in treatments:
+                details = []
+                if treatment.get('radius'):
+                    details.append(f"radius: {treatment['radius']}mm")
+                if treatment.get('size'):
+                    details.append(f"size: {treatment['size']}mm")
+                if treatment.get('angle'):
+                    details.append(f"angle: {treatment['angle']}°")
+                
+                details_str = f" ({', '.join(details)})" if details else ""
+                click.echo(f"  {treatment['name']}: {treatment['type']}{details_str}")
+    else:
+        err = result.get("error", "Edge treatment list failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Mesh commands ────────────────────────────────────────────────────
 
 
