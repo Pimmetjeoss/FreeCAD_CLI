@@ -863,6 +863,143 @@ def part_import_step(filepath: str, name: str | None) -> None:
     _output(obj, f"Imported STEP '{name}' from {filepath}")
 
 
+@part.command("offset")
+@click.argument("source")
+@click.option("-d", "--distance", type=float, default=1.0, help="Offset distance")
+@click.option("--mode", type=click.Choice(["skin", "pipe", "recto-verse"]), default="skin", help="Offset mode")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_offset(source: str, distance: float, mode: str, name: str | None) -> None:
+    """Offset a surface or face."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Offset")
+    obj = {
+        "name": name,
+        "type": "Part::Offset",
+        "label": name,
+        "params": {"source": source, "distance": distance, "mode": mode},
+    }
+    _session.add_object(obj, f"offset '{source}' d={distance}")
+    _output(obj, f"Created offset '{name}' from '{source}' (d={distance})")
+
+
+@part.command("thicken")
+@click.argument("source")
+@click.option("-t", "--thickness", type=float, default=2.0, help="Thickness")
+@click.option("--faces", default="", help="Face indices to remove (comma-separated)")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_thicken(source: str, thickness: float, faces: str, name: str | None) -> None:
+    """Thicken a surface to create a solid."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Thicken")
+    face_list = [int(f.strip()) for f in faces.split(",") if f.strip()] if faces else []
+    obj = {
+        "name": name,
+        "type": "Part::Thickness",
+        "label": name,
+        "params": {"source": source, "thickness": thickness, "faces": face_list},
+    }
+    _session.add_object(obj, f"thicken '{source}' t={thickness}")
+    _output(obj, f"Created thicken '{name}' from '{source}' (t={thickness})")
+
+
+@part.command("draft")
+@click.argument("source")
+@click.option("-a", "--angle", type=float, default=3.0, help="Draft angle (degrees)")
+@click.option("--direction-x", type=float, default=0, help="Pull direction X")
+@click.option("--direction-y", type=float, default=0, help="Pull direction Y")
+@click.option("--direction-z", type=float, default=1, help="Pull direction Z")
+@click.option("--neutral-x", type=float, default=0, help="Neutral plane point X")
+@click.option("--neutral-y", type=float, default=0, help="Neutral plane point Y")
+@click.option("--neutral-z", type=float, default=0, help="Neutral plane point Z")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_draft(
+    source: str,
+    angle: float,
+    direction_x: float,
+    direction_y: float,
+    direction_z: float,
+    neutral_x: float,
+    neutral_y: float,
+    neutral_z: float,
+    name: str | None,
+) -> None:
+    """Apply draft angle to faces (for molding/casting)."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Draft")
+    obj = {
+        "name": name,
+        "type": "Part::Draft",
+        "label": name,
+        "params": {
+            "source": source,
+            "angle": angle,
+            "direction_x": direction_x,
+            "direction_y": direction_y,
+            "direction_z": direction_z,
+            "neutral_x": neutral_x,
+            "neutral_y": neutral_y,
+            "neutral_z": neutral_z,
+        },
+    }
+    _session.add_object(obj, f"draft '{source}' angle={angle}°")
+    _output(obj, f"Created draft '{name}' from '{source}' (angle={angle}°)")
+
+
+@part.command("scale")
+@click.argument("source")
+@click.option("-s", "--uniform", type=float, default=None, help="Uniform scale factor")
+@click.option("--sx", type=float, default=1.0, help="Scale factor X")
+@click.option("--sy", type=float, default=1.0, help="Scale factor Y")
+@click.option("--sz", type=float, default=1.0, help="Scale factor Z")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_scale(
+    source: str, uniform: float | None, sx: float, sy: float, sz: float, name: str | None
+) -> None:
+    """Scale an object uniformly or non-uniformly."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Scale")
+    if uniform is not None:
+        sx, sy, sz = uniform, uniform, uniform
+    obj = {
+        "name": name,
+        "type": "Part::Scale",
+        "label": name,
+        "params": {"source": source, "sx": sx, "sy": sy, "sz": sz},
+    }
+    scale_str = f"{uniform}" if uniform else f"({sx}, {sy}, {sz})"
+    _session.add_object(obj, f"scale '{source}' by {scale_str}")
+    _output(obj, f"Created scale '{name}' from '{source}' (scale={scale_str})")
+
+
+@part.command("section")
+@click.argument("source")
+@click.option("--plane", type=click.Choice(["XY", "XZ", "YZ"]), default="XY", help="Section plane")
+@click.option("--offset", type=float, default=0, help="Plane offset from origin")
+@click.option("-n", "--name", default=None, help="Result name")
+def part_section(source: str, plane: str, offset: float, name: str | None) -> None:
+    """Create a 2D section cut through an object."""
+    _ensure_project()
+    if not _session.get_object(source):
+        raise click.ClickException(f"Object not found: {source}")
+    name = name or _next_name("Section")
+    obj = {
+        "name": name,
+        "type": "Part::Section",
+        "label": name,
+        "params": {"source": source, "plane": plane, "offset": offset},
+    }
+    _session.add_object(obj, f"section '{source}' on {plane} plane")
+    _output(obj, f"Created section '{name}' from '{source}' on {plane} plane")
+
+
 @part.command("measure")
 @click.argument("obj_name")
 def part_measure(obj_name: str) -> None:
@@ -932,6 +1069,7 @@ def sketch_line(sketch_name: str, x1: float, y1: float, x2: float, y2: float) ->
     _session.checkpoint(f"add line to '{sketch_name}'")
     geom = {"type": "line", "x1": x1, "y1": y1, "x2": x2, "y2": y2}
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(geom, f"Added line ({x1},{y1}) -> ({x2},{y2}) to '{sketch_name}'")
 
 
@@ -949,6 +1087,7 @@ def sketch_circle(sketch_name: str, cx: float, cy: float, radius: float) -> None
     _session.checkpoint(f"add circle to '{sketch_name}'")
     geom = {"type": "circle", "cx": cx, "cy": cy, "radius": radius}
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(geom, f"Added circle ({cx},{cy}) r={radius} to '{sketch_name}'")
 
 
@@ -969,6 +1108,7 @@ def sketch_rect(
     _session.checkpoint(f"add rect to '{sketch_name}'")
     geom = {"type": "rect", "x": x, "y": y, "width": width, "height": height}
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(geom, f"Added rectangle ({x},{y}) {width}x{height} to '{sketch_name}'")
 
 
@@ -1004,6 +1144,7 @@ def sketch_arc(
         "end_angle": end_angle,
     }
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(
         geom,
         f"Added arc ({cx},{cy}) r={radius} {start_angle}-{end_angle} deg to '{sketch_name}'",
@@ -1037,6 +1178,7 @@ def sketch_polygon(
         "rotation": rotation,
     }
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(
         geom,
         f"Added polygon ({sides} sides, r={radius}) at ({cx},{cy}) to '{sketch_name}'",
@@ -1073,6 +1215,7 @@ def sketch_ellipse(
         "rotation": rotation,
     }
     sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
     _output(
         geom,
         f"Added ellipse ({radius_major}x{radius_minor}) at ({cx},{cy}) to '{sketch_name}'",
@@ -1167,6 +1310,120 @@ def sketch_list(sketch_name: str) -> None:
             click.echo(f"  [{i}] {c['type']}: {c}")
 
 
+@sketch.command("spline")
+@click.argument("sketch_name")
+@click.option("--points", required=True, help="Control points as x1,y1;x2,y2;... (semicolon-separated)")
+@click.option("--degree", type=int, default=3, help="Spline degree (2-5)")
+def sketch_spline(sketch_name: str, points: str, degree: int) -> None:
+    """Add a B-Spline curve to a sketch."""
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    if degree < 2 or degree > 5:
+        raise click.ClickException("Spline degree must be between 2 and 5")
+    _session.checkpoint(f"add spline to '{sketch_name}'")
+    # Parse control points
+    control_points = []
+    for pt_str in points.split(";"):
+        pt_str = pt_str.strip()
+        if not pt_str:
+            continue
+        parts = pt_str.split(",")
+        if len(parts) != 2:
+            raise click.ClickException(f"Invalid point format: {pt_str}. Use x,y")
+        x, y = float(parts[0]), float(parts[1])
+        control_points.append({"x": x, "y": y})
+    if len(control_points) < 2:
+        raise click.ClickException("Spline needs at least 2 control points")
+    geom = {
+        "type": "spline",
+        "control_points": control_points,
+        "degree": degree,
+    }
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added B-Spline (degree {degree}, {len(control_points)} points) to '{sketch_name}'")
+
+
+@sketch.command("trim")
+@click.argument("sketch_name")
+@click.option("-g", "--geometry", "geom_idx", type=int, required=True, help="Geometry index to trim")
+@click.option("--pos-x", type=float, required=True, help="Trim position X")
+@click.option("--pos-y", type=float, required=True, help="Trim position Y")
+def sketch_trim(sketch_name: str, geom_idx: int, pos_x: float, pos_y: float) -> None:
+    """Trim/extend geometry at a point."""
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    geometry = sketch_obj["params"]["geometry"]
+    if geom_idx < 0 or geom_idx >= len(geometry):
+        raise click.ClickException(f"Geometry index {geom_idx} out of range (0-{len(geometry)-1})")
+    _session.checkpoint(f"trim geometry {geom_idx} in '{sketch_name}'")
+    geom = {
+        "type": "trim",
+        "geometry_index": geom_idx,
+        "position_x": pos_x,
+        "position_y": pos_y,
+    }
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added trim at ({pos_x},{pos_y}) to geometry {geom_idx} in '{sketch_name}'")
+
+
+@sketch.command("sketch-fillet")
+@click.argument("sketch_name")
+@click.option("-g1", "--geometry1", type=int, required=True, help="First geometry index")
+@click.option("-g2", "--geometry2", type=int, required=True, help="Second geometry index")
+@click.option("-r", "--radius", type=float, default=1.0, help="Fillet radius")
+def sketch_fillet(sketch_name: str, geometry1: int, geometry2: int, radius: float) -> None:
+    """Add a fillet between two sketch geometries."""
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    geometry = sketch_obj["params"]["geometry"]
+    if geometry1 < 0 or geometry1 >= len(geometry):
+        raise click.ClickException(f"Geometry index {geometry1} out of range")
+    if geometry2 < 0 or geometry2 >= len(geometry):
+        raise click.ClickException(f"Geometry index {geometry2} out of range")
+    _session.checkpoint(f"add fillet to '{sketch_name}'")
+    geom = {
+        "type": "fillet",
+        "geometry1": geometry1,
+        "geometry2": geometry2,
+        "radius": radius,
+    }
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added fillet (r={radius}) between geometries {geometry1} and {geometry2} in '{sketch_name}'")
+
+
+@sketch.command("sketch-offset")
+@click.argument("sketch_name")
+@click.option("-g", "--geometry", "geom_idx", type=int, required=True, help="Geometry index to offset")
+@click.option("-d", "--distance", type=float, default=1.0, help="Offset distance")
+def sketch_offset(sketch_name: str, geom_idx: int, distance: float) -> None:
+    """Create an offset copy of sketch geometry."""
+    _ensure_project()
+    sketch_obj = _session.get_object(sketch_name)
+    if not sketch_obj or sketch_obj.get("type") != "Sketcher::SketchObject":
+        raise click.ClickException(f"Sketch not found: {sketch_name}")
+    geometry = sketch_obj["params"]["geometry"]
+    if geom_idx < 0 or geom_idx >= len(geometry):
+        raise click.ClickException(f"Geometry index {geom_idx} out of range")
+    _session.checkpoint(f"add offset to '{sketch_name}'")
+    geom = {
+        "type": "offset",
+        "geometry_index": geom_idx,
+        "distance": distance,
+    }
+    sketch_obj["params"]["geometry"].append(geom)
+    _session._auto_save()
+    _output(geom, f"Added offset (d={distance}) to geometry {geom_idx} in '{sketch_name}'")
+
+
 # ── Mesh commands ────────────────────────────────────────────────────
 
 
@@ -1212,6 +1469,88 @@ def mesh_from_part(part_name: str, name: str | None) -> None:
     }
     _session.add_object(obj, f"mesh from part '{part_name}'")
     _output(obj, f"Created mesh '{name}' from part '{part_name}'")
+
+
+# ── SVG Import commands ──────────────────────────────────────────────
+
+
+@cli.command("svg-import")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option(
+    "-u",
+    "--units",
+    "target_units",
+    type=click.Choice(["mm", "cm", "m", "in", "pt"]),
+    default="mm",
+    help="Target units for import",
+)
+@click.option("-s", "--scale", type=float, default=1.0, help="Scale factor")
+@click.option(
+    "--fit-width", type=float, default=None, help="Scale to fit width (mm)"
+)
+@click.option(
+    "--fit-height", type=float, default=None, help="Scale to fit height (mm)"
+)
+@click.option("-n", "--name", default=None, help="Object name")
+def svg_import(
+    filepath: str,
+    target_units: str,
+    scale: float,
+    fit_width: float | None,
+    fit_height: float | None,
+    name: str | None,
+) -> None:
+    """Import an SVG file (vector graphics) into the project."""
+    from cli_anything.freecad.core.svg_import import (
+        parse_svg_units,
+        convert_units,
+        calculate_scale_to_fit,
+    )
+    
+    _ensure_project()
+    filepath = os.path.abspath(filepath)
+    
+    # Read and parse SVG
+    with open(filepath, "r") as f:
+        svg_content = f.read()
+    
+    svg_info = parse_svg_units(svg_content)
+    
+    # Calculate scale if fitting to size
+    if fit_width or fit_height:
+        svg_width = svg_info.get("width") or svg_info.get("viewbox_width", 100)
+        svg_height = svg_info.get("height") or svg_info.get("viewbox_height", 100)
+        svg_unit = svg_info.get("unit") or "mm"
+        
+        # Convert SVG dimensions to target units
+        width_in_target = convert_units(svg_width, svg_unit, target_units)
+        height_in_target = convert_units(svg_height, svg_unit, target_units)
+        
+        # Calculate fit scale
+        fit_scale = calculate_scale_to_fit(
+            width_in_target, height_in_target, fit_width, fit_height
+        )
+        scale = scale * fit_scale
+    
+    name = name or _next_name("SVG")
+    obj = {
+        "name": name,
+        "type": "ImportSVG",
+        "label": name,
+        "params": {
+            "filepath": filepath,
+            "target_units": target_units,
+            "scale": scale,
+            "svg_width": svg_info.get("width"),
+            "svg_height": svg_info.get("height"),
+            "svg_unit": svg_info.get("unit"),
+        },
+    }
+    _session.add_object(obj, f"import SVG '{filepath}'")
+    _output(
+        obj,
+        f"Imported SVG '{name}' from {filepath} (units={target_units}, scale={scale})",
+    )
 
 
 # ── Export commands ──────────────────────────────────────────────────
@@ -1273,7 +1612,7 @@ def export_formats() -> None:
 
 
 # Convenience export shortcuts
-for _fmt in ["step", "stl", "obj", "iges", "brep"]:
+for _fmt in ["step", "stl", "obj", "iges", "brep", "dxf"]:
 
     def _make_export_cmd(fmt_name):
         @export.command(fmt_name)

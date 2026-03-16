@@ -1,0 +1,18 @@
+[
+  {"id": 1, "name": "Implement part_offset command", "status": "todo"},
+  {"id": 2, "name": "Implement part_thicken command", "status": "todo"},
+  {"id": 3, "name": "Implement part_draft command", "status": "todo"},
+  {"id": 4, "name": "Implement part_scale command", "status": "todo"},
+  {"id": 5, "name": "Implement part_section command", "status": "todo"},
+  {"id": 6, "name": "Implement sketch_spline command", "status": "todo"},
+  {"id": 7, "name": "Implement sketch_trim command", "status": "todo"},
+  {"id": 8, "name": "Implement sketch_fillet command", "status": "todo"},
+  {"id": 9, "name": "Implement sketch_offset command", "status": "todo"},
+  {"id": 10, "name": "Implement IGES import/export", "status": "todo"},
+  {"id": 11, "name": "Implement DXF import/export", "status": "todo"},
+  {"id": 12, "name": "Implement OBJ import/export", "status": "todo"},
+  {"id": 13, "name": "Implement 3MF export", "status": "todo"},
+  {"id": 14, "name": "Write tests for new Part commands", "status": "todo"},
+  {"id": 15, "name": "Write tests for new Sketcher commands", "status": "todo"},
+  {"id": 16, "name": "Write tests for import/export", "status": "todo"}
+]

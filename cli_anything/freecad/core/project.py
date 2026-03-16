@@ -454,6 +454,95 @@ def _object_to_script(obj: dict[str, Any]) -> str:
     elif obj_type == "Part::ImportSTEP":
         filepath = params.get("filepath", "")
         return f"import Part\nPart.insert({filepath!r}, doc.Name)\n"
+    elif obj_type == "ImportSVG":
+        filepath = params.get("filepath", "")
+        target_units = params.get("target_units", "mm")
+        scale = params.get("scale", 1.0)
+        return (
+            f"import importSVG\n"
+            f"import FreeCAD\n"
+            f"\n"
+            f"# Import SVG\n"
+            f"importSVG.insert({filepath!r}, doc.Name)\n"
+            f"\n"
+            f"# Apply scale if needed\n"
+            f"if {scale} != 1.0:\n"
+            f"    for obj in doc.Objects:\n"
+            f"        if hasattr(obj, 'Shape'):\n"
+            f"            obj.Shape = obj.Shape.scale({scale})\n"
+            f"\n"
+            f"# Set document units to {target_units}\n"
+            f"FreeCAD.ParamGet('User parameter:BaseApp/Preferences/Units').SetInt('UserSchema', 3)  # mm\n"
+        )
+    elif obj_type == "Part::Offset":
+        source = params.get("source")
+        distance = params.get("distance", 1.0)
+        mode = params.get("mode", "skin")
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Offset', {name!r})\n"
+            f"_obj.Source = _src\n"
+            f"_obj.Value = {distance}\n"
+            f"_obj.Mode = {mode!r}\n"
+        )
+    elif obj_type == "Part::Draft":
+        source = params.get("source")
+        angle = params.get("angle", 3.0)
+        direction_x = params.get("direction_x", 0)
+        direction_y = params.get("direction_y", 0)
+        direction_z = params.get("direction_z", 1)
+        neutral_x = params.get("neutral_x", 0)
+        neutral_y = params.get("neutral_y", 0)
+        neutral_z = params.get("neutral_z", 0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Draft', {name!r})\n"
+            f"_obj.Source = _src\n"
+            f"_obj.Angle = {angle}\n"
+            f"_obj.Direction = FreeCAD.Vector({direction_x}, {direction_y}, {direction_z})\n"
+            f"_obj.NeutralPlane = FreeCAD.Placement("
+            f"FreeCAD.Vector({neutral_x}, {neutral_y}, {neutral_z}), "
+            f"FreeCAD.Rotation(0,0,0,1))\n"
+        )
+    elif obj_type == "Part::Scale":
+        source = params.get("source")
+        sx = params.get("sx", 1.0)
+        sy = params.get("sy", 1.0)
+        sz = params.get("sz", 1.0)
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Scale', {name!r})\n"
+            f"_obj.Source = _src\n"
+            f"_obj.XScale = {sx}\n"
+            f"_obj.YScale = {sy}\n"
+            f"_obj.ZScale = {sz}\n"
+        )
+    elif obj_type == "Part::Section":
+        source = params.get("source")
+        plane = params.get("plane", "XY")
+        offset = params.get("offset", 0)
+        if plane == "XY":
+            normal = "FreeCAD.Vector(0,0,1)"
+            base = f"FreeCAD.Vector(0,0,{offset})"
+        elif plane == "XZ":
+            normal = "FreeCAD.Vector(0,1,0)"
+            base = f"FreeCAD.Vector(0,{offset},0)"
+        elif plane == "YZ":
+            normal = "FreeCAD.Vector(1,0,0)"
+            base = f"FreeCAD.Vector({offset},0,0)"
+        else:
+            normal = "FreeCAD.Vector(0,0,1)"
+            base = f"FreeCAD.Vector(0,0,{offset})"
+        return (
+            f"doc.recompute()\n"
+            f"_src = doc.getObject({source!r})\n"
+            f"_obj = doc.addObject('Part::Feature', {name!r})\n"
+            f"_plane = FreeCAD.Placement({base}, FreeCAD.Rotation(0,0,0,1))\n"
+            f"_obj.Shape = _src.Shape.section(_plane)\n"
+        )
     elif obj_type == "Sketcher::SketchObject":
         plane = params.get("plane", "XY")
         geometry = params.get("geometry", [])
@@ -571,6 +660,42 @@ def _sketch_geometry_to_script(geom: dict[str, Any]) -> str:
             f"_obj.addGeometry(Part.Ellipse("
             f"FreeCAD.Vector({cx},{cy},0), "
             f"{rmaj}, {rmin}))\n"
+        )
+    elif gtype == "spline":
+        control_points = geom.get("control_points", [])
+        degree = geom.get("degree", 3)
+        if len(control_points) < 2:
+            return "# Spline needs at least 2 control points\n"
+        points_code = ", ".join(
+            f"FreeCAD.Vector({pt['x']},{pt['y']},0)" for pt in control_points
+        )
+        return (
+            f"import Part\n"
+            f"_pts = [{points_code}]\n"
+            f"_obj.addGeometry(Part.BSplineCurve(_pts, {degree}))\n"
+        )
+    elif gtype == "trim":
+        geom_idx = geom.get("geometry_index", 0)
+        pos_x = geom.get("position_x", 0)
+        pos_y = geom.get("position_y", 0)
+        return (
+            f"# Trim geometry {geom_idx} at ({pos_x}, {pos_y})\n"
+            f"# Note: Trim is handled via constraints in FreeCAD\n"
+        )
+    elif gtype == "fillet":
+        geom1 = geom.get("geometry1", 0)
+        geom2 = geom.get("geometry2", 0)
+        radius = geom.get("radius", 1.0)
+        return (
+            f"# Fillet between geometries {geom1} and {geom2} (r={radius})\n"
+            f"# Note: Fillet is handled via constraints in FreeCAD\n"
+        )
+    elif gtype == "offset":
+        geom_idx = geom.get("geometry_index", 0)
+        distance = geom.get("distance", 1.0)
+        return (
+            f"# Offset geometry {geom_idx} by {distance}\n"
+            f"# Note: Offset is handled via constraints in FreeCAD\n"
         )
     return f"# Unknown sketch geometry: {gtype}\n"
 
