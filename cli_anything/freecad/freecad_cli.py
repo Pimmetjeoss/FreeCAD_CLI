@@ -2150,6 +2150,238 @@ def partdesign_edge_treatments(body_name: str) -> None:
             raise click.ClickException(err)
 
 
+# ── Assembly commands ────────────────────────────────────────────────
+
+
+@cli.group()
+def assembly() -> None:
+    """Assembly workbench commands for multi-part products."""
+    pass
+
+
+@assembly.command("create")
+@click.option("-n", "--name", default=None, help="Assembly name")
+@click.option("-p", "--parts", default=None, help="Comma-separated part names to add")
+def assembly_create(name: str | None, parts: str | None) -> None:
+    """Create an assembly container for multi-part products."""
+    _ensure_project()
+    name = name or _next_name("Assembly")
+    
+    # Parse parts list
+    part_list = None
+    if parts:
+        part_list = [p.strip() for p in parts.split(",")]
+    
+    from cli_anything.freecad.core.assembly import create_assembly
+    
+    result = create_assembly(name=name, parts=part_list)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Assembly::AssemblyObject",
+            "label": name,
+            "params": {
+                "parts_added": r.get("parts_added", []),
+                "part_count": r.get("part_count", 0),
+            },
+        }
+        _session.add_object(obj, f"create assembly '{name}'")
+        _output(
+            obj,
+            f"Created Assembly: {name} ({r.get('part_count', 0)} parts)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Assembly creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@assembly.command("add-part")
+@click.argument("assembly_name")
+@click.argument("part_name")
+@click.option("-x", type=float, default=0, help="X position")
+@click.option("-y", type=float, default=0, help="Y position")
+@click.option("-z", type=float, default=0, help="Z position")
+@click.option("-r", "--rotation", type=float, default=0, help="Rotation around Z (degrees)")
+def assembly_add_part(
+    assembly_name: str, part_name: str, x: float, y: float, z: float, rotation: float
+) -> None:
+    """Add a part to an assembly with optional placement."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.assembly import add_part_to_assembly
+    
+    placement = {"x": x, "y": y, "z": z, "rotation": rotation} if any([x, y, z, rotation]) else None
+    
+    result = add_part_to_assembly(
+        assembly_name=assembly_name,
+        part_name=part_name,
+        placement=placement,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        _output(
+            {
+                "success": True,
+                "assembly_name": r.get("assembly_name"),
+                "part_name": r.get("part_name"),
+                "total_parts": r.get("total_parts"),
+            },
+            f"Added '{part_name}' to '{assembly_name}' ({r.get('total_parts', 0)} total parts)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Add part failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@assembly.command("constraint")
+@click.argument("assembly_name")
+@click.argument("part1_name")
+@click.argument("part2_name")
+@click.option("-t", "--type", "constraint_type", type=click.Choice(["coincident", "parallel", "perpendicular", "distance"]), default="coincident", help="Constraint type")
+@click.option("-n", "--name", default=None, help="Constraint name")
+def assembly_constraint(
+    assembly_name: str, part1_name: str, part2_name: str, constraint_type: str, name: str | None
+) -> None:
+    """Add constraint between parts in an assembly."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.assembly import assembly_constraint
+    
+    result = assembly_constraint(
+        assembly_name=assembly_name,
+        part1_name=part1_name,
+        part2_name=part2_name,
+        constraint_type=constraint_type,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Assembly::Constraint",
+            "label": name or r.get("object_name"),
+            "params": {
+                "assembly": r.get("assembly_name"),
+                "part1": r.get("part1"),
+                "part2": r.get("part2"),
+                "constraint_type": r.get("constraint_type"),
+            },
+        }
+        _session.add_object(obj, f"create constraint '{name or r.get('object_name')}'")
+        _output(
+            obj,
+            f"Created Constraint: {name or r.get('object_name')} "
+            f"({r.get('constraint_type')} between '{r.get('part1')}' and '{r.get('part2')}')",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Constraint creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@assembly.command("explode")
+@click.argument("assembly_name")
+@click.option("-f", "--factor", type=float, default=1.5, help="Explode factor (>1 = exploded)")
+@click.option("-n", "--name", default=None, help="Exploded view name")
+def assembly_explode(assembly_name: str, factor: float, name: str | None) -> None:
+    """Create an exploded view of an assembly."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.assembly import create_exploded_view
+    
+    result = create_exploded_view(
+        assembly_name=assembly_name,
+        explode_factor=factor,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Assembly::ExplodedView",
+            "label": name or r.get("object_name"),
+            "params": {
+                "assembly": r.get("assembly_name"),
+                "explode_factor": r.get("explode_factor"),
+                "parts_count": r.get("parts_count"),
+            },
+        }
+        _session.add_object(obj, f"create exploded view '{name or r.get('object_name')}'")
+        _output(
+            obj,
+            f"Created Exploded View: {name or r.get('object_name')} "
+            f"(factor={r.get('explode_factor')}, {r.get('parts_count', 0)} parts)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Exploded view failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@assembly.command("info")
+@click.argument("assembly_name")
+def assembly_info(assembly_name: str) -> None:
+    """Get information about an assembly."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.assembly import assembly_info
+    
+    result = assembly_info(assembly_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        parts = r.get("parts", [])
+        constraints = r.get("constraints", [])
+        
+        _output(
+            {
+                "success": True,
+                "assembly_name": r.get("assembly_name"),
+                "parts": parts,
+                "constraints": constraints,
+                "part_count": r.get("part_count", 0),
+                "constraint_count": r.get("constraint_count", 0),
+                "total_volume": r.get("total_volume", 0),
+                "total_area": r.get("total_area", 0),
+            },
+            f"Assembly '{assembly_name}': {r.get('part_count', 0)} parts, {r.get('constraint_count', 0)} constraints",
+        )
+        
+        if not _json_mode:
+            if parts:
+                click.echo("Parts:")
+                for part in parts:
+                    volume_info = f" (volume: {part.get('volume', 0):.2f}mm³)" if part.get('volume') else ""
+                    click.echo(f"  {part['name']}: {part['type']}{volume_info}")
+            
+            if constraints:
+                click.echo("Constraints:")
+                for constraint in constraints:
+                    part_info = f" ({constraint.get('part1')} - {constraint.get('part2')})" if constraint.get('part1') else ""
+                    click.echo(f"  {constraint['name']}: {constraint.get('constraint_type', constraint['type'])}{part_info}")
+    else:
+        err = result.get("error", "Assembly info failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Mesh commands ────────────────────────────────────────────────────
 
 
