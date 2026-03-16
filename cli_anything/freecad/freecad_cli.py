@@ -2150,6 +2150,349 @@ def partdesign_edge_treatments(body_name: str) -> None:
             raise click.ClickException(err)
 
 
+# ── FEM commands ─────────────────────────────────────────────────────
+
+
+@cli.group()
+def fem() -> None:
+    """FEM workbench commands for stress and thermal analysis."""
+    pass
+
+
+@fem.command("analysis")
+@click.option("-n", "--name", default=None, help="Analysis name")
+def fem_analysis(name: str | None) -> None:
+    """Create a FEM analysis container."""
+    _ensure_project()
+    name = name or _next_name("FEMAnalysis")
+    
+    from cli_anything.freecad.core.fem import create_analysis
+    
+    result = create_analysis(name=name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::FemAnalysis",
+            "label": name,
+            "params": {},
+        }
+        _session.add_object(obj, f"create FEM analysis '{name}'")
+        _output(obj, f"Created FEM Analysis: {name}")
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Analysis creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("material")
+@click.argument("analysis_name")
+@click.argument("object_name")
+@click.option("-m", "--material", type=click.Choice(["Steel", "Aluminum", "Concrete", "Custom"]), default="Steel", help="Material type")
+@click.option("-n", "--name", default=None, help="Material name")
+def fem_material(analysis_name: str, object_name: str, material: str, name: str | None) -> None:
+    """Add material properties to an object for FEM analysis."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import add_material
+    
+    result = add_material(
+        analysis_name=analysis_name,
+        object_name=object_name,
+        material=material,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::Material",
+            "label": name or r.get("object_name"),
+            "params": {
+                "analysis": r.get("analysis_name"),
+                "target_object": r.get("target_object"),
+                "material": r.get("material"),
+                "properties": r.get("properties", {}),
+            },
+        }
+        _session.add_object(obj, f"add material '{name or r.get('object_name')}' to '{object_name}'")
+        _output(
+            obj,
+            f"Added Material: {name or r.get('object_name')} ({r.get('material')}) to '{object_name}'",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Material assignment failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("mesh")
+@click.argument("analysis_name")
+@click.argument("object_name")
+@click.option("-s", "--element-size", type=float, default=5.0, help="Element size (mm)")
+@click.option("-t", "--element-type", type=click.Choice(["Tetrahedron", "Hexahedron"]), default="Tetrahedron", help="Element type")
+@click.option("-n", "--name", default=None, help="Mesh name")
+def fem_mesh(analysis_name: str, object_name: str, element_size: float, element_type: str, name: str | None) -> None:
+    """Create a finite element mesh for analysis."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import create_mesh
+    
+    result = create_mesh(
+        analysis_name=analysis_name,
+        object_name=object_name,
+        element_size=element_size,
+        element_type=element_type,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::FemMeshMesh",
+            "label": name or r.get("object_name"),
+            "params": {
+                "analysis": r.get("analysis_name"),
+                "target_object": r.get("target_object"),
+                "element_size": r.get("element_size"),
+                "element_type": r.get("element_type"),
+                "node_count": r.get("node_count"),
+                "element_count": r.get("element_count"),
+            },
+        }
+        _session.add_object(obj, f"create mesh '{name or r.get('object_name')}' for '{object_name}'")
+        _output(
+            obj,
+            f"Created Mesh: {name or r.get('object_name')} "
+            f"({r.get('element_count', 0)} elements, {r.get('node_count', 0)} nodes)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Mesh creation failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("fixed")
+@click.argument("analysis_name")
+@click.argument("object_name")
+@click.option("-f", "--face", default=None, help="Specific face to fix")
+@click.option("-n", "--name", default=None, help="Constraint name")
+def fem_fixed(analysis_name: str, object_name: str, face: str | None, name: str | None) -> None:
+    """Add fixed constraint (boundary condition) to analysis."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import add_constraint_fixed
+    
+    result = add_constraint_fixed(
+        analysis_name=analysis_name,
+        object_name=object_name,
+        face_name=face,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::ConstraintFixed",
+            "label": name or r.get("object_name"),
+            "params": {
+                "analysis": r.get("analysis_name"),
+                "target_object": r.get("target_object"),
+                "face": r.get("face"),
+            },
+        }
+        _session.add_object(obj, f"add fixed constraint '{name or r.get('object_name')}'")
+        _output(
+            obj,
+            f"Added Fixed Constraint: {name or r.get('object_name')} on '{object_name}'",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Fixed constraint failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("force")
+@click.argument("analysis_name")
+@click.argument("object_name")
+@click.option("-x", type=float, default=0.0, help="Force X (N)")
+@click.option("-y", type=float, default=0.0, help="Force Y (N)")
+@click.option("-z", type=float, default=-1000.0, help="Force Z (N, default downward)")
+@click.option("-f", "--face", default=None, help="Specific face for force")
+@click.option("-n", "--name", default=None, help="Constraint name")
+def fem_force(analysis_name: str, object_name: str, x: float, y: float, z: float, face: str | None, name: str | None) -> None:
+    """Add force constraint (load) to analysis."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import add_constraint_force
+    
+    result = add_constraint_force(
+        analysis_name=analysis_name,
+        object_name=object_name,
+        force_x=x,
+        force_y=y,
+        force_z=z,
+        face_name=face,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::ConstraintForce",
+            "label": name or r.get("object_name"),
+            "params": {
+                "analysis": r.get("analysis_name"),
+                "target_object": r.get("target_object"),
+                "force_x": r.get("force_x"),
+                "force_y": r.get("force_y"),
+                "force_z": r.get("force_z"),
+                "resultant_force": r.get("resultant_force"),
+                "face": r.get("face"),
+            },
+        }
+        _session.add_object(obj, f"add force constraint '{name or r.get('object_name')}'")
+        _output(
+            obj,
+            f"Added Force Constraint: {name or r.get('object_name')} "
+            f"({r.get('resultant_force', 0):.1f}N resultant)",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Force constraint failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("solve")
+@click.argument("analysis_name")
+@click.option("-s", "--solver", type=click.Choice(["CalculiX", "Elmer", "Z88"]), default="CalculiX", help="Solver type")
+@click.option("-t", "--type", "analysis_type", type=click.Choice(["static", "thermal", "modal"]), default="static", help="Analysis type")
+@click.option("-n", "--name", default=None, help="Solver name")
+def fem_solve(analysis_name: str, solver: str, analysis_type: str, name: str | None) -> None:
+    """Run FEM solver to calculate stresses and displacements."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import run_solver
+    
+    result = run_solver(
+        analysis_name=analysis_name,
+        solver_type=solver,
+        analysis_type=analysis_type,
+        name=name,
+    )
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        obj = {
+            "name": r.get("object_name"),
+            "type": "Fem::FemSolverObject",
+            "label": name or r.get("object_name"),
+            "params": {
+                "analysis": r.get("analysis_name"),
+                "solver_type": r.get("solver_type"),
+                "analysis_type": r.get("analysis_type"),
+                "results_available": r.get("results_available"),
+                "max_displacement": r.get("max_displacement"),
+                "max_stress": r.get("max_stress"),
+            },
+        }
+        _session.add_object(obj, f"run solver '{name or r.get('object_name')}'")
+        
+        results_info = ""
+        if r.get("results_available"):
+            results_info = f" (max displacement: {r.get('max_displacement', 0):.3f}mm, max stress: {r.get('max_stress', 0):.1f}MPa)"
+        
+        _output(
+            obj,
+            f"Solver Complete: {name or r.get('object_name')} ({r.get('solver_type')}, {r.get('analysis_type')}){results_info}",
+        )
+    else:
+        err = result.get("error", result.get("result", {}).get("error", "Solver failed"))
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
+@fem.command("info")
+@click.argument("analysis_name")
+def fem_info(analysis_name: str) -> None:
+    """Get information about a FEM analysis."""
+    _ensure_project()
+    
+    from cli_anything.freecad.core.fem import analysis_info
+    
+    result = analysis_info(analysis_name)
+    
+    if result.get("success"):
+        r = result.get("result", {})
+        materials = r.get("materials", [])
+        meshes = r.get("meshes", [])
+        constraints = r.get("constraints", [])
+        solvers = r.get("solvers", [])
+        
+        _output(
+            {
+                "success": True,
+                "analysis_name": r.get("analysis_name"),
+                "materials": materials,
+                "meshes": meshes,
+                "constraints": constraints,
+                "solvers": solvers,
+                "material_count": r.get("material_count", 0),
+                "mesh_count": r.get("mesh_count", 0),
+                "constraint_count": r.get("constraint_count", 0),
+                "solver_count": r.get("solver_count", 0),
+            },
+            f"FEM Analysis '{analysis_name}': {r.get('material_count', 0)} materials, {r.get('mesh_count', 0)} meshes, {r.get('constraint_count', 0)} constraints, {r.get('solver_count', 0)} solvers",
+        )
+        
+        if not _json_mode:
+            if materials:
+                click.echo("Materials:")
+                for mat in materials:
+                    mat_name = mat.get('material_name', 'Unknown')
+                    click.echo(f"  {mat['name']}: {mat['type']} ({mat_name})")
+            
+            if meshes:
+                click.echo("Meshes:")
+                for mesh in meshes:
+                    elem_info = f" ({mesh.get('element_count', 0)} elements)" if mesh.get('element_count') else ""
+                    click.echo(f"  {mesh['name']}: {mesh['type']}{elem_info}")
+            
+            if constraints:
+                click.echo("Constraints:")
+                for const in constraints:
+                    click.echo(f"  {const['name']}: {const['type']}")
+            
+            if solvers:
+                click.echo("Solvers:")
+                for solver in solvers:
+                    solver_info = f" ({solver.get('solver_type', 'Unknown')}, {solver.get('analysis_type', 'Unknown')})" if solver.get('solver_type') else ""
+                    click.echo(f"  {solver['name']}: {solver['type']}{solver_info}")
+    else:
+        err = result.get("error", "Analysis info failed")
+        if _json_mode:
+            _output({"success": False, "error": err})
+        else:
+            raise click.ClickException(err)
+
+
 # ── Assembly commands ────────────────────────────────────────────────
 
 
