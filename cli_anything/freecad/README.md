@@ -172,6 +172,52 @@ cli-anything-freecad --project part.json techdraw weld-tile Sheet1 Weld1 \
 
 Contour symbols: `flush`, `convex`, `concave`.
 
+### Lasercut Validation
+```bash
+# Validate geometry for laser cutting (all objects)
+cli-anything-freecad --project part.json validate-lasercut
+
+# Validate with plate dimensions (corten plaat 500x300mm)
+cli-anything-freecad --project part.json validate-lasercut \
+  --plate-width 500 --plate-height 300
+
+# Custom minimum feature size and kerf width
+cli-anything-freecad --project part.json validate-lasercut \
+  --min-feature 0.5 --kerf-width 0.15
+
+# Validate specific object only (JSON output)
+cli-anything-freecad --json --project part.json validate-lasercut \
+  -o CutProfile --plate-width 500 --plate-height 300
+```
+
+Checks performed:
+- **Contour closure** — all wires/profiles form closed loops
+- **Duplicate edges** — no overlapping cuts
+- **Minimum feature size** — features >= kerf width (default 0.5mm)
+- **Plate fit** — geometry fits on specified plate (incl. kerf margin)
+- **Kerf advisory** — compensation needed for internal features (holes)
+
+### SVG-to-DXF Lasercut Workflow
+```bash
+# 1. Create project
+cli-anything-freecad project new -o plaat.json
+
+# 2. Import vector file (1:1 in mm)
+cli-anything-freecad --project plaat.json svg-import design.svg --units mm
+
+# 3. Or scale to fit plate (500x300mm corten)
+cli-anything-freecad --project plaat.json svg-import design.svg \
+  --units mm --fit-width 500 --fit-height 300
+
+# 4. Validate for laser cutting
+cli-anything-freecad --project plaat.json validate-lasercut \
+  --plate-width 500 --plate-height 300
+
+# 5. Export to DXF or STEP
+cli-anything-freecad --project plaat.json export dxf output.dxf --overwrite
+cli-anything-freecad --project plaat.json export step output.step --overwrite
+```
+
 ### Placement (positioning objects in 3D)
 All primitives support `--px`, `--py`, `--pz` for 3D positioning:
 ```bash
@@ -196,6 +242,7 @@ cli-anything-freecad --project p.json techdraw view Sheet1 Box -d plan          
 - `mesh` — Mesh import/export
 - `techdraw` — 2D fabrication drawings (pages, views, projections, sections, detail views, dimensions, title block, centerlines, hatches, leaders, balloons, BOM, **GD&T tolerances, datum symbols, surface finish, weld symbols**, DXF/SVG/PDF export)
 - `export` — Export to STEP, STL, OBJ, IGES, BREP, DXF, SVG, PDF
+- `validate-lasercut` — Validate geometry for laser/CNC cutting (contour closure, duplicates, min. feature size, plate fit)
 - `session` — Undo/redo, history, status
 
 ## Running tests

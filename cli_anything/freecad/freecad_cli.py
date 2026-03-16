@@ -1553,6 +1553,98 @@ def svg_import(
     )
 
 
+# ── Lasercut Validation commands ─────────────────────────────────────
+
+
+@cli.command("validate-lasercut")
+@click.option(
+    "-o",
+    "--object",
+    "object_name",
+    default=None,
+    help="Specific object to validate (default: all)",
+)
+@click.option(
+    "--min-feature",
+    type=float,
+    default=None,
+    help="Minimum feature size in mm (default: 0.5)",
+)
+@click.option(
+    "--kerf-width",
+    type=float,
+    default=None,
+    help="Laser kerf width in mm (default: 0.15)",
+)
+@click.option(
+    "--plate-width",
+    type=float,
+    default=None,
+    help="Plate width in mm (for fit check)",
+)
+@click.option(
+    "--plate-height",
+    type=float,
+    default=None,
+    help="Plate height in mm (for fit check)",
+)
+def validate_lasercut(
+    object_name: str | None,
+    min_feature: float | None,
+    kerf_width: float | None,
+    plate_width: float | None,
+    plate_height: float | None,
+) -> None:
+    """Validate geometry for laser cutting / CNC manufacturing.
+
+    Checks contour closure, duplicate edges, minimum feature sizes,
+    plate fit, and kerf compensation needs. Essential for preparing
+    DXF/STEP files for laser cutting corten steel or similar materials.
+    """
+    from cli_anything.freecad.core.lasercut_validation import (
+        validate_project_for_lasercut,
+        DEFAULT_MIN_FEATURE_SIZE_MM,
+        DEFAULT_KERF_WIDTH_MM,
+    )
+
+    _ensure_project()
+    proj = _session.project
+
+    report = validate_project_for_lasercut(
+        project=proj,
+        object_name=object_name,
+        min_feature_mm=min_feature if min_feature is not None else DEFAULT_MIN_FEATURE_SIZE_MM,
+        kerf_width_mm=kerf_width if kerf_width is not None else DEFAULT_KERF_WIDTH_MM,
+        plate_width_mm=plate_width,
+        plate_height_mm=plate_height,
+    )
+
+    _output(report, "")
+    if not _json_mode:
+        passed = report["passed"]
+        status = "PASS" if passed else "FAIL"
+        lines = [f"Lasercut Validation: {status} ({report['passed_count']}/{report['check_count']} checks passed)"]
+        lines.append("")
+
+        for check in report.get("checks", []):
+            icon = "OK" if check["passed"] else "FAIL"
+            lines.append(f"  [{icon}] {check['name']}: {check['message']}")
+
+        if report.get("errors"):
+            lines.append("")
+            lines.append("Errors:")
+            for err in report["errors"]:
+                lines.append(f"  - {err}")
+
+        if report.get("warnings"):
+            lines.append("")
+            lines.append("Warnings:")
+            for warn in report["warnings"]:
+                lines.append(f"  - {warn}")
+
+        click.echo("\n".join(lines))
+
+
 # ── Export commands ──────────────────────────────────────────────────
 
 
@@ -3301,6 +3393,7 @@ def repl(ctx: click.Context, project_path: str | None) -> None:
         "techdraw surface-finish <page> <view> --ra/--rz": "Surface finish",
         "techdraw weld <page> <view> -t TYPE": "Add weld symbol (AWS/ISO)",
         "techdraw weld-tile <page> <weld> -t TYPE": "Add tile to weld",
+        "validate-lasercut": "Validate for laser cutting",
         "export render <path> [-p FORMAT]": "Export to format",
         "export formats": "List formats",
         "session status": "Session status",
