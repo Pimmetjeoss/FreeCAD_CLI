@@ -179,7 +179,7 @@ try:
                 bounds['min_y'] = min(bounds['min_y'], end.y)
                 bounds['max_x'] = max(bounds['max_x'], end.x)
                 bounds['max_y'] = max(bounds['max_y'], end.y)
-        except:
+        except (AttributeError, TypeError, ValueError):
             pass
     
     # Get document units

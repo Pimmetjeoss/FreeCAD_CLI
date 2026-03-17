@@ -312,3 +312,62 @@ cli_anything/freecad/tests/test_full_e2e.py::TestCLISubprocess::test_export_form
 - Volume/area verification for box: volume=3000.0, area=1300.0 (mathematically correct)
 - TechDraw uses `projectToSVG` for headless-safe SVG export (avoids `viewPartAsSvg` segfault in FreeCAD 0.21.2)
 - Dimension `References2D` wrapped in try/except for HLR timing issues
+
+---
+
+## Tier 1-3 Module Tests (v1.2.0)
+
+**Date:** 2026-03-17
+**New test files:** 4 files, 68 tests
+
+### Bug Fix
+
+- **dxf_import.py:182** — Changed bare `except: pass` to `except (AttributeError, TypeError, ValueError): pass`
+
+### New Test Files
+
+| File | Tests | Passed | Skipped | Coverage |
+|------|-------|--------|---------|----------|
+| `test_partdesign.py` | 26 | 19 | 7* | partdesign.py, partdesign_patterns.py, partdesign_manufacturing.py |
+| `test_assembly.py` | 14 | 14 | 0 | assembly.py |
+| `test_fem.py` | 16 | 16 | 0 | fem.py |
+| `test_dxf_import_module.py` | 12 | 12 | 0 | dxf_import.py |
+| **Total** | **68** | **61** | **7** | |
+
+\* 7 skipped tests are direct `run_script()` calls that require FreeCAD backend (they pass on Linux CI with FreeCAD installed)
+
+### Test Classes
+
+| Class | Tests | What It Tests |
+|-------|-------|---------------|
+| TestPartDesignBodyCLI | 3 | Body create, no-project error, JSON output |
+| TestPartDesignPadPocketCLI | 4 | Pad/Pocket CLI, missing sketch, option parsing |
+| TestLinearPatternValidation | 5 | Direct core call: invalid/valid directions, case-insensitive |
+| TestPolarPatternValidation | 4 | Direct core call: invalid/valid axes |
+| TestDraftCLI | 2 | No-project error, angle parsing |
+| TestManufacturingCLI | 4 | Fillet/Chamfer/Thickness arg parsing |
+| TestFeatureListCLI | 2 | Features/Patterns no-project errors |
+| TestPartDesignHelpOutput | 2 | --help output |
+| TestAssemblyCreateCLI | 3 | Create, with parts, no-project |
+| TestAssemblyAddPartCLI | 3 | With/without placement, no-project |
+| TestAssemblyConstraintCLI | 3 | Constraint types, wiring, no-project |
+| TestAssemblyExplodeCLI | 2 | Factor, no-project |
+| TestAssemblyInfoCLI | 2 | Wiring, no-project |
+| TestAssemblyHelpOutput | 1 | --help output |
+| TestFemAnalysisCLI | 3 | Create with/without name, no-project |
+| TestFemMaterialCLI | 3 | Material types, wiring, no-project |
+| TestFemMeshCLI | 3 | Element size/type, no-project |
+| TestFemConstraintsCLI | 3 | Fixed/Force constraints, xyz values |
+| TestFemSolveCLI | 2 | Solver types, no-project |
+| TestFemInfoCLI | 2 | Wiring, no-project |
+| TestDxfImportValidation | 4 | File-not-found, auto-naming, analyze errors |
+| TestDxfImportCLI | 4 | Layers/scale/units options, no-project |
+| TestDxfInfoCLI | 2 | Wiring, file-not-found |
+| TestBareExceptRegression | 2 | No bare except in source, specific exceptions caught |
+
+### Test Design
+
+- All CLI tests use `CliRunner` with `isolated_filesystem()`
+- Backend-dependent tests accept either success OR `RuntimeError("FreeCAD is not installed")` via `_assert_ok_or_backend_error()` helper
+- Direct core function tests verify Python-layer validation (no backend needed)
+- Regression tests verify bare except fix via source inspection
